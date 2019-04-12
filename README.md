@@ -35,10 +35,10 @@ sudo make install
 已编译了以下模块，可供使用（下载地址:[IDE助手](http://47.93.187.229/helper.zip)）
 
 ```shell
-# php7.0 64位 线程安全版
-php_decrypt_php70_ts_VC14_x64.dll
-# php7.0 64位 线程非安全版
-php_decrypt_php70_nts_VC14_x64.dll
+# php7.2 64位 线程安全版
+php_decrypt_php72_ts_VC15_x64.dll
+# php7.2 64位 线程非安全版
+php_decrypt_php72_nts_VC15_x64.dll
 ```
 
 ## 使用
@@ -54,10 +54,8 @@ extension=你的扩展路径/decrypt.so
 [decrypt]
 ;用来配置解密功能开关,默认为disable
 decrypt.switch=enable
-;需要解密的php源码目录
-decrypt.source_path=/www/encryption
 ;解密后的php源码存放目录
-decrypt.new_path=/www/decrypt
+decrypt.save_path=/www/decrypt
 ```
 
 ### 2.扩展方式的加密源码
@@ -69,14 +67,12 @@ extension=你的扩展路径/decrypt.so
 [decrypt]
 ;用来配置解密功能开关,默认为disable
 decrypt.switch=enable
-;需要解密的php源码目录
-decrypt.source_path=/www/encryption
 ;解密后的php源码存放目录
-decrypt.new_path=/www/decrypt
+decrypt.save_path=/www/decrypt
 ;假设这是你的加密扩展,你需要在它之前先加载解密扩展
 ;extension=你的加密扩展路径/encryption.so
 ```
-保存php.ini文件并重启php-fpm，然后访问加密的源码文件，就会把解密的源码文件保存到decrypt.new_path你设置的目录中去。
+保存php.ini文件并重启php-fpm，然后访问加密的源码文件，就会把解密的源码文件保存到/www/decrypt/decrypt.code的文件中。
 
 如果不需要使用解密功能的话可以把php.ini文件中的decrypt.switch=enable设置为decrypt.switch=disable，重启php-fpm。
 
