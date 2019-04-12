@@ -2,7 +2,7 @@ PHP Decrypt
 =======
 [![License](https://img.shields.io/badge/license-apache2-blue.svg)](LICENSE)
 
-**PHP Decrypt是一个跨平台用来解密PHP源码的扩展，可以解密目前市场上大部门加密的源码(除了OpCode混淆-Swoole Compile)。**
+**PHP Decrypt是一个跨平台用来解密PHP源码的扩展，可以解密目前市场上大部份加密的源码(除了OpCode混淆-Swoole Compile)。**
 
 ## 特点
 
