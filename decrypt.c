@@ -27,7 +27,7 @@
 #include "ext/standard/info.h"
 #include "php_decrypt.h"
 
-#include "ext/standard/php_string.h"
+#include "lib.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(decrypt)
 
@@ -39,21 +39,34 @@ PHP_INI_END()
 
 zend_op_array *decrypt_compile_file(zend_file_handle *file_handle, int type)
 {
-    char *buf;
-    size_t size;
-    if(zend_stream_fixup(file_handle,&buf,&size)==SUCCESS)
+    char drive[128];
+    char dir[128];
+    char fname[128];
+    char ext[128];
+    _splitpath(file_handle->filename, drive, dir, fname, ext);
+    if(!strcmp(dir,DCG(global_source)))
     {
-        FILE *fp = NULL;
-        fp=fopen("/Users/albertzhan/test.php","a+");
-        if(fp!=NULL)
+        if(is_dirs(DCG(global_new)))
         {
-            fprintf(fp,"%s",file_handle->filename);
-            for(int i=0;i<=size;i++)
-            {
-                fprintf(fp,"%c",buf[i]);
-            }
+            php_error_docref(NULL,E_ERROR,"%s folder does not exist",DCG(global_new));
         }
-        fclose(fp);
+        char *buf;
+        size_t size;
+        if(zend_stream_fixup(file_handle,&buf,&size)==SUCCESS)
+        {
+            char *dir_name=strcat(DCG(global_new),DS);
+            char *file_name= strcat(fname,ext);
+            FILE *fp = NULL;
+            fp=fopen(strcat(dir_name,file_name),"w");
+            if(fp!=NULL)
+            {
+                for(int i=0;i<=size;i++)
+                {
+                    fprintf(fp,"%c",buf[i]);
+                }
+            }
+            fclose(fp);
+        }
     }
     return old_compile_file(file_handle,type);
 }

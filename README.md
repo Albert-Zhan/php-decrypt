@@ -2,7 +2,7 @@ PHP Decrypt
 =======
 [![License](https://img.shields.io/badge/license-apache2-blue.svg)](LICENSE)
 
-**PHP Decrypt是一个跨平台用来解密PHP源码的扩展，可以解密目前市场上大部份加密的源码(除了OpCode混淆-Swoole Compile)。**
+**PHP Decrypt是一个跨平台用来解密PHP源码的扩展，可以解密目前市场上大部分加密的源码(除了OpCode混淆-Swoole Compile)。**
 
 ## 特点
 
@@ -55,9 +55,9 @@ extension=你的扩展路径/decrypt.so
 ;用来配置解密功能开关,默认为disable
 decrypt.switch=enable
 ;需要解密的php源码目录
-decrypt.source_path=/www/encryption/
+decrypt.source_path=/www/encryption
 ;解密后的php源码存放目录
-decrypt.new_path=/www/decrypt/
+decrypt.new_path=/www/decrypt
 ```
 
 ### 2.扩展方式的加密源码
@@ -70,9 +70,9 @@ extension=你的扩展路径/decrypt.so
 ;用来配置解密功能开关,默认为disable
 decrypt.switch=enable
 ;需要解密的php源码目录
-decrypt.source_path=/www/encryption/
+decrypt.source_path=/www/encryption
 ;解密后的php源码存放目录
-decrypt.new_path=/www/decrypt/
+decrypt.new_path=/www/decrypt
 ;假设这是你的加密扩展,你需要在它之前先加载解密扩展
 ;extension=你的加密扩展路径/encryption.so
 ```
