@@ -33,40 +33,34 @@ ZEND_DECLARE_MODULE_GLOBALS(decrypt)
 
 PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("decrypt.switch","enable",PHP_INI_SYSTEM, OnUpdateString, global_switch, zend_decrypt_globals, decrypt_globals)
-    STD_PHP_INI_ENTRY("decrypt.source_path","''",PHP_INI_SYSTEM, OnUpdateString, global_source, zend_decrypt_globals, decrypt_globals)
-    STD_PHP_INI_ENTRY("decrypt.new_path","''",PHP_INI_SYSTEM, OnUpdateString, global_new, zend_decrypt_globals, decrypt_globals)
+    STD_PHP_INI_ENTRY("decrypt.save_path","''",PHP_INI_SYSTEM, OnUpdateString, global_new, zend_decrypt_globals, decrypt_globals)
 PHP_INI_END()
 
 zend_op_array *decrypt_compile_file(zend_file_handle *file_handle, int type)
 {
-    char drive[128];
-    char dir[128];
-    char fname[128];
-    char ext[128];
-    _splitpath(file_handle->filename, drive, dir, fname, ext);
-    if(!strcmp(dir,DCG(global_source)))
+    if(is_dirs(DCG(global_new)))
     {
-        if(is_dirs(DCG(global_new)))
+        php_error_docref(NULL,E_ERROR,"%s folder does not exist",DCG(global_new));
+    }
+    char *buf;
+    size_t size;
+    if(zend_stream_fixup(file_handle,&buf,&size)==SUCCESS)
+    {
+        char *dir_name=strcat(DCG(global_new),DS);
+        char *file_name= "decrypt.code";
+        FILE *fp = NULL;
+        fp=fopen(strcat(dir_name,file_name),"a+");
+        if(fp!=NULL)
         {
-            php_error_docref(NULL,E_ERROR,"%s folder does not exist",DCG(global_new));
-        }
-        char *buf;
-        size_t size;
-        if(zend_stream_fixup(file_handle,&buf,&size)==SUCCESS)
-        {
-            char *dir_name=strcat(DCG(global_new),DS);
-            char *file_name= strcat(fname,ext);
-            FILE *fp = NULL;
-            fp=fopen(strcat(dir_name,file_name),"w");
-            if(fp!=NULL)
+            fprintf(fp,"%s",file_handle->filename);
+            fprintf(fp,"%s",BR);
+            for(int i=0;i<=size;i++)
             {
-                for(int i=0;i<=size;i++)
-                {
-                    fprintf(fp,"%c",buf[i]);
-                }
+                fprintf(fp,"%c",buf[i]);
             }
-            fclose(fp);
+            fprintf(fp,"%s",BR);
         }
+        fclose(fp);
     }
     return old_compile_file(file_handle,type);
 }

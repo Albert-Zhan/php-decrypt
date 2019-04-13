@@ -48,7 +48,6 @@ PHP_MINFO_FUNCTION(decrypt);
 
 ZEND_BEGIN_MODULE_GLOBALS(decrypt)
     char *global_switch;
-    char *global_source;
     char *global_new;
 ZEND_END_MODULE_GLOBALS(decrypt)
 
