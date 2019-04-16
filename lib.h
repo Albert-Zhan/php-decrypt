@@ -21,11 +21,8 @@
 
 #ifdef PHP_WIN32
 #include <io.h>
-#include <direct.h>
 #else
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #endif
 
 #ifdef PHP_WIN32
@@ -41,17 +38,6 @@ int is_dirs(const char* _Filename);
 int is_dirs(const char* _Filename)
 {
     return access(_Filename,F_OK);
-}
-
-int mkdirs(const char *pathname);
-
-int mkdirs(const char *pathname)
-{
-    #ifdef PHP_WIN32
-    return mkdir(pathname);
-    #else
-    return mkdir(pathname,S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH);
-    #endif
 }
 
 #endif
