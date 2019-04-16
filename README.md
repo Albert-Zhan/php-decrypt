@@ -32,7 +32,7 @@ sudo make install
 
 ### 在Windows上编译
 
-已编译了以下模块，可供使用（下载地址:[IDE助手](http://47.93.187.229/helper.zip)）
+已编译了以下模块，可供使用（下载地址:[windows_dll](http://47.93.187.229/helper.zip)）
 
 ```shell
 # php7.2 64位 线程安全版
