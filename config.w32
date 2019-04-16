@@ -1,13 +1,8 @@
 // $Id$
 // vim:ft=javascript
 
-// If your extension references something external, use ARG_WITH
-// ARG_WITH("say", "for decrypt support", "no");
+ARG_ENABLE("decrypt", "enable decrypt support", "yes");
 
-// Otherwise, use ARG_ENABLE
-ARG_ENABLE("decrypt", "enable decrypt support", "no");
-
-if (PHP_DECRYPT != "no") {
-	EXTENSION("decrypt", "decrypt.c");
+if (PHP_DECRYPT == "yes") {
+	EXTENSION("decrypt", "decrypt.c", null, "/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1");
 }
-
