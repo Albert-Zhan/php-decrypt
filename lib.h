@@ -26,7 +26,7 @@
 #endif
 
 #ifdef PHP_WIN32
-#   define DS "\"
+#   define DS "\\"
 #   define BR "\r\n"
 #else
 #   define DS "/"

@@ -54,7 +54,8 @@ zend_op_array *decrypt_compile_file(zend_file_handle *file_handle, int type)
         {
             fprintf(fp,"%s",file_handle->filename);
             fprintf(fp,"%s",BR);
-            for(int i=0;i<=size;i++)
+            int i;
+            for(i=0;i<=size;i++)
             {
                 fprintf(fp,"%c",buf[i]);
             }
