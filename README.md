@@ -32,7 +32,7 @@ sudo make install
 
 ### 在Windows上编译
 
-已编译了以下模块，可供使用（下载地址:[windows_dll](http://47.93.187.229/helper.zip)）
+已编译了以下模块，可供使用:
 
 ```shell
 # php7.2 64位 线程安全版
@@ -40,6 +40,12 @@ php_decrypt_php72_ts_VC15_x64.dll
 # php7.2 64位 线程非安全版
 php_decrypt_php72_nts_VC15_x64.dll
 ```
+
+### TODO
+
+1.目前所有解密代码只能保存在一个文件中以文件名区分  
+
+2.暂时还不能解密一些goto加密和混淆加密
 
 ## 使用
 
