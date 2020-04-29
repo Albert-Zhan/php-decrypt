@@ -2,7 +2,7 @@ PHP Decrypt
 =======
 [![License](https://img.shields.io/badge/license-apache2-blue.svg)](LICENSE)
 
-**PHP Decrypt是一个跨平台用来解密PHP源码的扩展，可以解密目前市场上大部分加密的源码(除了OpCode混淆-Swoole Compile)。**
+**PHP Decrypt是一个跨平台用来解密PHP源码的扩展，可以解密部分使用扩展跟eval加密的代码。**
 
 ## 特点
 
@@ -32,14 +32,7 @@ sudo make install
 
 ### 在Windows上编译
 
-已编译了以下模块，可供使用:
-
-```shell
-# php7.2 64位 线程安全版
-php_decrypt_php72_ts_VC15_x64.dll
-# php7.2 64位 线程非安全版
-php_decrypt_php72_nts_VC15_x64.dll
-```
+可以自行参考本篇文章：https://learnku.com/articles/22323
 
 ### TODO
 
