@@ -10,7 +10,7 @@
 | 8.3.6 NTS | phpize → configure → make，通过 | 11/11 通过，0 跳过 | 捕获、校验、恢复、再次执行通过 |
 | 8.3.6 ZTS | phpize → configure → make，通过 | 11/11 通过，0 跳过 | 捕获、校验、恢复、再次执行通过 |
 
-扩展编译使用 `-g -O2 -Wall -Wextra -Werror -Wno-unused-parameter`。PHP 7.0 和 8.0 曾进行补充构建排查，但最终修改后的完整矩阵尚未完成，因此不列为本版已验证版本。Windows、macOS、FPM、ZTS 多线程并行请求、网络文件系统及商业加密扩展组合未验证。ZTS 结果仅指以 ZTS 模式构建的 CLI 运行。
+扩展编译使用 `-g -O2 -Wall -Wextra -Werror -Wno-unused-parameter`。PHP 7.0 和 8.0 曾进行补充构建排查，但最终修改后的完整矩阵尚未完成，因此不列为本版已验证版本。原生 Windows 不属于支持范围；`config.w32` 及条件编译代码仅供开发者自行适配参考，不纳入本验证矩阵。macOS、FPM、ZTS 多线程并行请求、网络文件系统及商业加密扩展组合未验证。ZTS 结果仅指以 ZTS 模式构建的 CLI 运行。
 
 ## 测试内容
 

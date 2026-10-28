@@ -6,9 +6,15 @@ PHP Decrypt 在 PHP 文件编译和字符串编译入口捕获源码。0.2 起�
 
 它保存的是编译入口实际收到的字节。能否得到明文取决于包装脚本或加密扩展的实现、执行路径以及扩展加载顺序；不保证还原 opcode、混淆逻辑或未执行的文件。`eval()` 捕获保存求值前的代码字符串，不自动把多个动态片段拼成原文件。
 
+## 平台范围
+
+项目以 **Linux** 作为支持和验证平台。Windows 宿主机用户使用 WSL2 或 Linux 容器时，请在其中使用 Linux 版 PHP 及对应工具链，按下述 Linux 流程编译和运行。
+
+原生 Windows 不属于项目支持范围。[config.w32](config.w32) 和现有 Windows 条件编译代码仅作为开发者自行适配、编译的参考保留，不代表 Windows 构建可用或经过验证。
+
 ## 编译
 
-需要 PHP CLI 和对应的开发工具、C 编译器、make、autoconf。PHP 必须包含 `hash` 和 `json` 扩展。Linux 是本版的主要验证平台，具体结果见 [测试记录](docs/testing.md)；已验证的 ZTS 构建仅覆盖 CLI；Windows、macOS、FPM、多线程并行请求和第三方加密扩展组合尚未验证。
+需要 PHP CLI 和对应的开发工具、C 编译器、make、autoconf。PHP 必须包含 `hash` 和 `json` 扩展。Linux 下的具体结果见 [测试记录](docs/testing.md)；已验证的 ZTS 构建仅覆盖 CLI。macOS、FPM、多线程并行请求和第三方加密扩展组合尚未验证。
 
 ```bash
 git clone https://github.com/Albert-Zhan/php-decrypt.git
