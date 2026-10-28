@@ -20,24 +20,11 @@
 #define LIB_H
 
 #ifdef PHP_WIN32
-#include <io.h>
-#else
-#include <unistd.h>
-#endif
-
-#ifdef PHP_WIN32
 #   define DS "\\"
 #   define BR "\r\n"
 #else
 #   define DS "/"
 #   define BR "\n"
 #endif
-
-int is_dirs(const char* _Filename);
-
-int is_dirs(const char* _Filename)
-{
-    return access(_Filename,F_OK);
-}
 
 #endif

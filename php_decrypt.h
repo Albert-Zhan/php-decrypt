@@ -38,8 +38,6 @@ extern zend_module_entry decrypt_module_entry;
 #include "TSRM.h"
 #endif
 
-zend_op_array *(*old_compile_file)(zend_file_handle *,int);
-
 zend_op_array *decrypt_compile_file(zend_file_handle *, int);
 
 PHP_MINIT_FUNCTION(decrypt);
