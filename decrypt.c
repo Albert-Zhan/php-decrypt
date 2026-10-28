@@ -48,7 +48,7 @@ PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("decrypt.capture_eval", "1", PHP_INI_SYSTEM, OnUpdateBool, capture_eval, zend_decrypt_globals, decrypt_globals)
 PHP_INI_END()
 
-zend_op_array *decrypt_compile_file(zend_file_handle *file_handle, int type)
+static zend_op_array *decrypt_compile_file(zend_file_handle *file_handle, int type)
 {
     char *buf;
     size_t size;
