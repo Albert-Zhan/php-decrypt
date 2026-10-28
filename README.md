@@ -1,20 +1,39 @@
-PHP Decrypt
-===========
+# PHP Decrypt
+
 [![License](https://img.shields.io/badge/license-apache2-blue.svg)](LICENSE)
 
-PHP Decrypt 在 PHP 文件编译和字符串编译入口捕获源码。0.2 起以项目目录视图、可选的内容历史库和 JSONL 索引替代 `decrypt.code`。
+PHP Decrypt 是一个 PHP 扩展，在文件编译和字符串编译入口捕获源码，用于分析运行时交给 PHP 编译器的代码，包括 `eval()` 接收到的代码字符串。
 
-它保存的是编译入口实际收到的字节。能否得到明文取决于包装脚本或加密扩展的实现、执行路径以及扩展加载顺序；不保证还原 opcode、混淆逻辑或未执行的文件。`eval()` 捕获保存求值前的代码字符串，不自动把多个动态片段拼成原文件。
+- 按项目相对路径保存最近捕获的文件，保留源码原始字节。
+- 独立保存 `eval()` 代码片段，不添加 PHP 标签或拼接片段。
+- 通过 SHA-256 对历史内容去重，以 JSONL 索引记录版本变化。
+- 提供并发写入保护、完整性检查工具和可运行的捕获示例。
 
-## 平台范围
+能否捕获到明文取决于目标代码、加密扩展的实现和加载顺序。本扩展不保证还原 opcode、消除混淆或恢复未执行的代码。
 
-项目支持 **Linux** 和 **macOS**。已在 macOS 15.7.9 的 Apple Silicon（arm64）及 Intel（x86_64）上验证 PHP 7.4.33、8.3.36 的 CLI 和 FPM；另验证了 Apple Silicon 的对应 ZTS CLI，并对 PHP 8.3 ZTS 执行了真实线程捕获。具体版本和限制见 [运行环境验证](docs/runtime-testing.md)。Windows 宿主机用户使用 WSL2 或 Linux 容器时，请在其中使用 Linux 版 PHP 及对应工具链，按下述 Linux 流程编译和运行。
+## 环境要求
 
-原生 Windows 不属于项目支持范围。[config.w32](config.w32) 和现有 Windows 条件编译代码仅作为开发者自行适配、编译的参考保留，不代表 Windows 构建可用或经过验证。
+- Linux 或 macOS，PHP CLI 及对应的 `phpize`、`php-config` 开发工具。
+- PHP 的 `hash`、`json` 扩展。
+- C 编译器、make、autoconf；macOS 另需 Xcode Command Line Tools。
 
-## 编译
+当前主要验证范围如下，完整补丁版本、测试结果和限制见[运行环境验证](docs/runtime-testing.md)。
 
-需要 PHP CLI 和对应的开发工具、C 编译器、make、autoconf。PHP 必须包含 `hash` 和 `json` 扩展。各平台的具体结果见 [测试记录](docs/testing.md)及 [FPM / ZTS 验证](docs/runtime-testing.md)。第三方加密扩展、OPcache/Xdebug 组合和生产长期负载仍需单独验证。
+| 平台 | PHP | 已验证的运行方式 |
+|---|---|---|
+| Linux x86_64 | 7.4 / 8.3 | NTS CLI、FPM；另有 Linux 8.3 ZTS CLI 和真实线程验证 |
+| macOS Apple Silicon（arm64） | 7.4 / 8.3 | NTS CLI、FPM、ZTS CLI；8.3 另含真实线程验证 |
+| macOS Intel（x86_64） | 7.4 / 8.3 | NTS CLI、FPM |
+
+普通 CLI 和 FPM 场景建议使用 NTS。编译扩展时，PHP 版本、架构和 NTS/ZTS 构建必须与目标运行时匹配，不能混用 `.so`。
+
+原生 Windows 不属于支持范围；Windows 用户可在 WSL2 或 Linux 容器内按 Linux 流程使用。[config.w32](config.w32) 和 Windows 条件编译代码保留给自行适配的开发者，不代表已验证 Windows 构建。
+
+## 安装
+
+### 从源码编译
+
+先安装目标 PHP 对应的开发工具和上述构建依赖，再执行：
 
 ```bash
 git clone https://github.com/Albert-Zhan/php-decrypt.git
@@ -22,122 +41,97 @@ cd php-decrypt
 phpize
 ./configure --enable-decrypt --with-php-config="$(command -v php-config)"
 make -j2
-make test TESTS=tests
 sudo make install
 ```
 
-多版本 PHP 要使用同一版本的 `php`、`phpize` 和 `php-config`。每个 PHP API 版本需分别编译模块，不能混用 `.so`。
+构建产物为 `modules/decrypt.so`；`make install` 将其安装到所选 PHP 的扩展目录。安装目录属于当前用户时，可省略 `sudo`。测试方法见[测试与开发](#测试与开发)。
 
-### macOS 构建
+### macOS 准备
 
-使用已安装的 Xcode Command Line Tools 和 Homebrew。以下以 [Homebrew PHP 8.3](https://formulae.brew.sh/formula/php@8.3) 为例，不依赖固定的 Intel/Apple Silicon 安装目录：
+安装 Xcode Command Line Tools 后，可用 Homebrew 准备工具链。以下以 PHP 8.3 为例，适用于 Apple Silicon 和 Intel：
 
 ```bash
 brew install php@8.3 autoconf pkgconf
-PHP_PREFIX="$(brew --prefix php@8.3)"
-"$PHP_PREFIX/bin/phpize"
-./configure --enable-decrypt --with-php-config="$PHP_PREFIX/bin/php-config"
-make -j2
-TEST_PHP_EXECUTABLE="$PHP_PREFIX/bin/php" make test TESTS=tests
+export PATH="$(brew --prefix php@8.3)/bin:$PATH"
 ```
 
-macOS 的 `/tmp`、`/var` 等路径可能包含系统符号链接。输出目录需要使用物理路径，以保留扩展现有的符号链接保护规则。例如：
+随后执行上面的源码编译命令。多版本环境中，确保 `php`、`phpize`、`php-config` 来自同一套 PHP 安装。
+
+## 快速使用
+
+以下命令从仓库根目录执行，临时加载刚构建的模块，无需先修改 `php.ini`。将 `/path/to/project`、`/path/to/captures` 和入口 `index.php` 替换为实际路径；输出目录应位于项目和 Web 根目录之外，并由运行 PHP 的用户独占管理。
 
 ```bash
-mkdir -p /tmp/php-captures-shop
-cd /tmp/php-captures-shop && pwd -P
+PROJECT_ROOT="$(cd "/path/to/project" && pwd -P)"
+mkdir -p "/path/to/captures"
+chmod 700 "/path/to/captures"
+CAPTURE_ROOT="$(cd "/path/to/captures" && pwd -P)"
+
+php -d "extension=$PWD/modules/decrypt.so" \
+    -d decrypt.switch=enable \
+    -d "decrypt.project_root=$PROJECT_ROOT" \
+    -d "decrypt.save_path=$CAPTURE_ROOT" \
+    -d opcache.enable_cli=0 \
+    "$PROJECT_ROOT/index.php"
 ```
 
-将打印的路径（例如 `/private/tmp/php-captures-shop`）用于 `decrypt.save_path`。示例和测试脚本会使用物理路径。APFS 只接受有效 UTF-8 文件名，对应的非 UTF-8 文件名测试会按文件系统能力跳过；中文文件名和二进制源码仍有测试覆盖。严格同步采用 `fsync()`，不声称已验证断电持久性。
+如果已在 INI 中加载扩展，请省略命令中的 `-d "extension=..."`，避免重复加载。扩展仅捕获实际经过编译入口、且来源位于项目内的代码。要捕获其他执行分支，需要运行对应入口和输入；这会执行目标程序的业务逻辑，请在可控环境中操作。
+
+macOS 的 `/tmp`、`/var` 可能经过系统符号链接。上面的 `pwd -P` 会取得物理路径，例如 `/private/tmp/...`，以满足输出路径的符号链接保护规则。
 
 ## 配置
 
-先创建一个独立、私有的输出目录。示例路径需要替换成实际路径；目录所有者应为运行 PHP 的用户，建议权限 `0700`，放在 Web 根目录以外。一个输出目录只对应一个项目。
+长期使用或接入 FPM 时，可参考 [decrypt.ini.example](decrypt.ini.example)，将以下内容加入目标 PHP 的 `php.ini` 或扫描配置目录：
 
 ```ini
-extension=/absolute/path/to/decrypt.so
+extension=decrypt.so
 
 [decrypt]
 decrypt.switch=enable
 decrypt.project_root=/www/shop
 decrypt.save_path=/data/php-captures/shop
-decrypt.history=1
-decrypt.index=1
-decrypt.capture_eval=1
-decrypt.sync=0
 ```
 
-可复制 [decrypt.ini.example](decrypt.ini.example)。所有配置为 `PHP_INI_SYSTEM`，不能在脚本里用 `ini_set()` 修改；CLI 可通过 `-d` 指定，FPM 修改后需重启。
+`extension=decrypt.so` 适用于已执行 `make install` 的情况，也可填写模块绝对路径。两个目录必须提前创建，输出目录须对 PHP 运行用户可写；建议权限为 `0700`，每个项目使用独立输出目录。
 
-| 配置 | 默认值 | 含义 |
+| 配置项 | 默认值 | 说明 |
 |---|---|---|
-| `decrypt.switch` | `disable` | 设为 `enable` 才安装捕获钩子 |
-| `decrypt.project_root` | 空 | 必填，已存在的项目绝对目录；外部源码不捕获 |
-| `decrypt.save_path` | 空 | 必填，已存在且可写的输出绝对目录 |
-| `decrypt.history` | `1` | 保存按 SHA-256 去重的原始内容对象 |
-| `decrypt.index` | `1` | 记录版本变化；关闭后不生成可供历史恢复的索引 |
-| `decrypt.capture_eval` | `1` | 捕获来源位于项目内的 `eval()` / 字符串编译内容 |
-| `decrypt.sync` | `0` | Linux/macOS 下同步文件及目录更新，提高持久性并增加延迟 |
+| `decrypt.switch` | `disable` | 设为 `enable` 才启用捕获钩子 |
+| `decrypt.project_root` | 空 | 启用捕获时必填，已存在的项目绝对目录 |
+| `decrypt.save_path` | 空 | 启用捕获时必填，已存在且可写的输出绝对目录 |
+| `decrypt.history` | `1` | 保存按内容去重的历史对象 |
+| `decrypt.index` | `1` | 追加 JSONL 版本记录，供检查和恢复工具使用 |
+| `decrypt.capture_eval` | `1` | 捕获来源位于项目内的字符串编译内容，包括 `eval()` |
+| `decrypt.sync` | `0` | 同步文件和目录更新，提高持久性并增加写入延迟 |
 
-建议输出目录放在项目之外。允许放在项目内部的独立子目录，但该子树会被排除；输出目录不能等于或包含项目根目录。输出路径受 `open_basedir` 限制，拒绝已有的符号链接。输出目录及其父目录应由可信用户控制，不应允许其他进程恶意改动目录结构。
+所有配置均为 `PHP_INI_SYSTEM`，不能用 `ini_set()` 修改。CLI 可使用 `-d`；修改 FPM 配置后需重启或重新加载 FPM。CLI 与 FPM 可能使用不同配置文件，`php --ini` 和 `php --ri decrypt` 仅检查当前 CLI。
 
-已有 `decrypt.switch`、`decrypt.save_path` 可保留，但升级时必须新增 `decrypt.project_root`。旧 `decrypt.code` 不再写入，也不会被自动转换或删除。
+输出路径受 `open_basedir` 限制，拒绝已有符号链接。输出目录不能等于项目根目录，也不能是项目根目录的上级目录；若置于项目内部，该输出子树会被排除。输出目录及其父目录应由可信用户控制。
 
-## 输出
+从旧版本升级时，需新增 `decrypt.project_root`。0.2 起不再写入 `decrypt.code`，旧文件不会自动转换或删除。
 
-以下路径相对于 `decrypt.save_path`；哈希名称在示例中缩写，实际为完整 SHA-256。
+## 捕获结果
 
-| 路径示例 | 内容 |
+以下路径均相对于 `decrypt.save_path`，哈希值使用完整 SHA-256：
+
+| 路径 | 内容 |
 |---|---|
 | `current/index.php` | 入口文件最近捕获到的原始字节 |
-| `current/app/Controller/User.php` | 按项目相对路径映射的源码 |
-| `eval/<来源哈希>/<内容哈希>.code` | 独立的字符串编译内容，保留原字节，不添加 PHP 标签 |
-| `objects/ab/<完整内容哈希>.code` | 历史内容对象；相同内容共用一个文件 |
-| `index.jsonl` | JSONL 版本记录 |
-| `locks/<路径哈希>.lock` | 并发锁和上次成功发布的状态，运行中不要删除 |
+| `current/app/Controller/User.php` | 按项目相对目录结构保存的文件 |
+| `eval/<来源哈希>/<内容哈希>.code` | 独立代码片段，保留原字节，不补 PHP 标签 |
+| `objects/<内容哈希前两位>/<内容哈希>.code` | 开启 `history` 时保存的去重历史对象 |
+| `index.jsonl` | 开启 `index` 时追加的版本记录 |
+| `locks/<路径哈希>.lock` | 并发锁和发布状态，捕获运行期间不要删除 |
 
-`current` 只含实际经过捕获入口的项目文件，不复制图片、CSS、未执行源码等资源。它不是一次性完整项目快照；多个文件可能来自不同请求或时间。对于 Base64 + eval 包装，`current` 保留包装文件，求值时的明文在 `eval` 中。
+`current/` 保留文件编译入口收到的内容。对于 Base64 + eval 包装，包装文件在 `current/`，求值前的代码字符串在 `eval/`。原项目删除文件后，已有捕获仍会保留。
 
-索引字段：
+同一普通文件从 A 变成 B 再变回 A，默认记录三次版本变化，但只保存两个历史内容对象。不同路径的相同内容也共用历史对象。
 
-| 字段 | 含义 |
-|---|---|
-| `schema` | 格式版本，目前为 `1` |
-| `kind` | `file` 或 `eval` |
-| `source_path` | 文件路径或字符串编译器提供的来源标签 |
-| `relative_path` | 当前捕获文件相对于输出根目录的路径，包含 `current/` 或 `eval/` |
-| `sha256` / `bytes` | 内容校验和 / 原始字节数 |
-| `captured_at` / `pid` | Unix 秒级时间戳 / 捕获进程号 |
-| `object` | 历史对象相对路径，未开启历史时为 `null` |
-| `source_path_b64` / `relative_path_b64` | 路径原始字节的 Base64；非 UTF-8 路径以此字段为准 |
-
-普通文件内容从 A 变成 B 再变回 A，会记录三次版本变化，但只保存两个内容对象。相同路径、内容和配置再次出现时不重复替换文件或追加索引。不同路径相同内容仍各有自己的项目视图和索引记录，但共用历史对象。`eval` 按来源和内容保存不同片段，即使 `history=0`，不同片段也会分别保留在 `eval`。
-
-## 完整性和故障恢复
-
-源码写入同目录下的唯一临时文件，完整写入并关闭后才重命名发布。按路径加锁保护版本更新，索引单独加锁追加；普通捕获不会扫描整个索引。检测到中断的最后一条 JSONL 记录时，在下次追加前截掉不完整尾行。
-
-发布顺序为历史对象、当前文件、索引、锁文件状态。中途失败不提交成功状态，后续捕获会重试。源码输出失败会警告，通常继续编译原脚本；应用的错误处理器仍可能把警告转换成异常。
-
-这不是跨文件事务：进程退出可能留下临时文件、无索引对象或未索引的当前版本；索引记录也可能因重试重复。`sync=0` 不提供断电持久性保证。`sync=1` 检查文件和目录同步结果，仍需底层文件系统和存储设备正确实现同步。
-
-为减少重复捕获开销，正常路径信任扩展独占管理的输出和状态，只检查存在性、文件类型和大小，不反复读取每份历史对象计算校验和。手工修改或相同长度的数据损坏应使用完整性检查工具识别：
-
-```bash
-php -n tools/verify-captures.php /data/php-captures/shop
-```
-
-停用捕获后，可从完整历史对象恢复索引中最后记录的项目文件和 eval 片段：
-
-```bash
-php -n tools/verify-captures.php /data/php-captures/shop --repair-current
-```
-
-检查工具会验证索引路径和对象校验和，拒绝用损坏对象恢复。它不会修复已损坏的历史对象、猜测未索引内容或修复整个索引；索引缺失且无历史对象时无法重建。原项目删除文件不会触发输出清理，已有捕获会保留。
+捕获结果只包含实际经过捕获入口的代码，不包含图片、CSS 或未执行源码，也不构成同一时刻的完整项目快照。索引字段、写入流程及完整性检查见[存储与恢复](docs/storage.md)。
 
 ## 完整示例
 
-仓库带有两个文件组成的 Base64 + eval 示例及明文对照。运行命令会执行包装项目、捕获文件和明文、校验所有对象、逐字节对照两个 eval 片段、恢复示例项目，然后执行恢复的入口：
+仓库提供由两个文件组成的 Base64 + eval 示例及明文对照。从仓库根目录执行，输出路径必须尚不存在：
 
 ```bash
 PHP_BIN="$(command -v php)" \
@@ -145,36 +139,37 @@ DECRYPT_EXTENSION="$PWD/modules/decrypt.so" \
 examples/run-demo.sh /tmp/php-decrypt-demo
 ```
 
-成功时会看到两次 `Hello from captured PHP`，以及两个文件的校验和恢复结果。生成的 `restored/index.php` 和 `restored/lib/message.php` 与 `examples/demo/plain` 一致。
+脚本会运行包装项目、捕获文件与 eval 体、校验原始字节和历史对象，再导出并执行恢复后的示例。成功时会看到两次 `Hello from captured PHP`；`restored/index.php` 和 `restored/lib/message.php` 与 [examples/demo/plain](examples/demo/plain) 一致。
 
-这是针对已知“一文件一个完整 eval 体”的示例导出逻辑；真实脚本可能动态生成多个片段、依赖外部输入或存在其他分支，不能据此保证自动恢复任意项目。实际捕获需要运行目标代码；建议在可控的隔离环境执行。
+示例的导出逻辑针对已知的“一文件一个完整 eval 体”，不能直接用于自动恢复任意项目。脚本会隔离 PHP 配置，并在需要时显式加载共享的 `hash`、`json` 依赖。
 
-## OPcache 和扩展组合
+## 使用限制
 
-OPcache 命中时文件编译钩子可能被跳过，因此不能假设每次请求都捕获全部文件。CLI 示例使用 `-n` 隔离配置，并在所选 PHP 将 hash/json 构建为共享模块时显式载入这两个依赖。使用第三方加密扩展时需逐一验证它是否将明文交给这些编译入口及加载顺序；本版不宣称通用解密能力。
+- **OPcache：** 缓存命中可能跳过文件编译钩子，不能假设每次请求都重新捕获。快速使用命令和集成测试关闭了对应的 OPcache 功能。
+- **扩展组合：** 第三方加密扩展能否把明文交给这些入口、以及与 OPcache/Xdebug 的兼容性，需要逐一验证实现和加载顺序。
+- **写入与恢复：** 源码通过同目录临时文件完整写入后再重命名发布，但多个输出文件之间没有事务保证。异常中断及同步选项的边界见[存储与恢复](docs/storage.md#写入与故障恢复)。
 
-## 测试和性能
+## 测试与开发
 
-Linux/macOS 下可用独立构建目录执行完整测试（脚本沿用原名称）：
+Linux 和 macOS 均可用以下脚本在独立目录构建并运行 PHPT；构建目录应使用仓库之外的新空目录，PHP 工具路径需替换为实际值：
 
 ```bash
 PHP_BIN=/path/to/php PHPIZE=/path/to/phpize PHP_CONFIG=/path/to/php-config \
 tools/test-linux.sh /tmp/php-decrypt-build
 ```
 
-本地微基准比较关闭捕获、首次捕获和未变更内容重复捕获，输出三轮测量的中位数，不包含 PHP 进程启动时间：
+脚本会处理共享 `hash`、`json` 依赖，确认扩展实际加载，并检查测试确实执行。`test-linux.sh` 的名称沿用早期版本，同样适用于 macOS。
 
-```bash
-DECRYPT_EXTENSION="$PWD/modules/decrypt.so" php -n tools/benchmark.php 200 20480
-```
+| 文档或工具 | 用途 |
+|---|---|
+| [基础测试与性能记录](docs/testing.md) | PHPT 场景、示例结果及本地微基准 |
+| [运行环境验证](docs/runtime-testing.md) | Linux/macOS、Intel、FPM 和 ZTS 的验证矩阵及复现方法 |
+| [tools/test-fpm.py](tools/test-fpm.py) | 真实 FPM 连续请求、异常恢复和多 worker 并发检查 |
+| [tools/test-zts.php](tools/test-zts.php) | 配合 `parallel` 进行原生线程捕获检查 |
+| [tools/verify-captures.php](tools/verify-captures.php) | 校验索引引用的对象与文件，按索引恢复镜像 |
 
-它会实际运行生成的无业务逻辑 PHP 文件，不代表 FPM 业务负载、慢磁盘、网络文件系统或严格同步模式的性能。更多验证细节见 [测试记录](docs/testing.md)。
+`parallel` 仅用于线程测试，不是本扩展的运行依赖。性能数据为本地微基准，不代表业务请求、网络文件系统或长期生产负载。
 
+## 许可证
 
-### FPM 和原生线程验证
-
-`tools/test-fpm.py` 可启动临时 FPM 池，验证同一 worker 连续请求、异常与退出后的恢复、版本变化和多 worker 并发。PHP 8.3 ZTS 还可通过 `tools/test-zts.php` 配合 parallel 运行真实线程捕获。运行方法、完整矩阵及验证限制见 [运行环境验证](docs/runtime-testing.md)。
-
-## License
-
-Apache License Version 2.0. See [LICENSE](LICENSE).
+Apache License 2.0，详见 [LICENSE](LICENSE)。
