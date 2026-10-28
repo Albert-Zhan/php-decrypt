@@ -23,5 +23,16 @@ make -j"${JOBS:-2}" CFLAGS='-g -O2 -Wall -Wextra -Werror -Wno-unused-parameter'
 export TEST_PHP_EXECUTABLE="$php_bin"
 export DECRYPT_EXTENSION="$build_dir/modules/decrypt.so"
 export NO_INTERACTION=1 REPORT_EXIT_STATUS=1
-make test TESTS=tests
+# make test replaces extension_dir and strips extension directives from php.ini.
+# Explicit absolute paths keep shared PHP 7 dependencies loaded before decrypt.
+. "$repo_dir/tools/php-runtime.sh"
+php_decrypt_isolated_args "$php_bin"
+"$php_bin" "${PHP_DECRYPT_ISOLATED_ARGS[@]}" -d "extension=$DECRYPT_EXTENSION" \
+    -r 'if (!extension_loaded("decrypt")) exit(1);'
+shared_flags=""
+for argument in "${PHP_DECRYPT_ISOLATED_ARGS[@]:1}" -d "extension=$DECRYPT_EXTENSION"; do
+    quoted=$("$php_bin" -r 'echo escapeshellarg($argv[1]);' "$argument")
+    shared_flags="$shared_flags $quoted"
+done
+make test TESTS=tests "PHP_TEST_SHARED_EXTENSIONS=$shared_flags"
 printf 'Extension: %s\n' "$DECRYPT_EXTENSION"
