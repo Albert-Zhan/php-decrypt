@@ -24,7 +24,7 @@
 extern zend_module_entry decrypt_module_entry;
 #define phpext_decrypt_ptr &decrypt_module_entry
 
-#define PHP_DECRYPT_VERSION "0.1.1" /* Replace with version number for your extension */
+#define PHP_DECRYPT_VERSION "0.2.0"
 
 #ifdef PHP_WIN32
 #   define PHP_DECRYPT_API __declspec(dllexport)
@@ -46,7 +46,17 @@ PHP_MINFO_FUNCTION(decrypt);
 
 ZEND_BEGIN_MODULE_GLOBALS(decrypt)
     char *global_switch;
-    char *global_new;
+    char *save_path;
+    char *project_root;
+    zend_bool history;
+    zend_bool index;
+    zend_bool sync;
+    zend_bool capture_eval;
+    char *input_root;
+    char *output_root;
+    zend_bool busy;
+    zend_bool ready;
+    zend_bool config_failed;
 ZEND_END_MODULE_GLOBALS(decrypt)
 
 ZEND_EXTERN_MODULE_GLOBALS(decrypt)

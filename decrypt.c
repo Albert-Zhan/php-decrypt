@@ -28,67 +28,71 @@
 #include "ext/standard/info.h"
 #include "php_decrypt.h"
 
-#include "lib.h"
+#include "capture.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(decrypt)
 
 static zend_op_array *(*old_compile_file)(zend_file_handle *, int) = NULL;
 
+#if PHP_VERSION_ID >= 80200
+static zend_op_array *(*old_compile_string)(zend_string *, const char *, zend_compile_position) = NULL;
+#elif PHP_VERSION_ID >= 80000
+static zend_op_array *(*old_compile_string)(zend_string *, const char *) = NULL;
+#else
+static zend_op_array *(*old_compile_string)(zval *, char *) = NULL;
+#endif
+
 PHP_INI_BEGIN()
-    STD_PHP_INI_ENTRY("decrypt.switch","disable",PHP_INI_SYSTEM, OnUpdateString, global_switch, zend_decrypt_globals, decrypt_globals)
-    STD_PHP_INI_ENTRY("decrypt.save_path","",PHP_INI_SYSTEM, OnUpdateString, global_new, zend_decrypt_globals, decrypt_globals)
+    STD_PHP_INI_ENTRY("decrypt.switch", "disable", PHP_INI_SYSTEM, OnUpdateString, global_switch, zend_decrypt_globals, decrypt_globals)
+    STD_PHP_INI_ENTRY("decrypt.save_path", "", PHP_INI_SYSTEM, OnUpdateString, save_path, zend_decrypt_globals, decrypt_globals)
+    STD_PHP_INI_ENTRY("decrypt.project_root", "", PHP_INI_SYSTEM, OnUpdateString, project_root, zend_decrypt_globals, decrypt_globals)
+    STD_PHP_INI_BOOLEAN("decrypt.history", "1", PHP_INI_SYSTEM, OnUpdateBool, history, zend_decrypt_globals, decrypt_globals)
+    STD_PHP_INI_BOOLEAN("decrypt.index", "1", PHP_INI_SYSTEM, OnUpdateBool, index, zend_decrypt_globals, decrypt_globals)
+    STD_PHP_INI_BOOLEAN("decrypt.sync", "0", PHP_INI_SYSTEM, OnUpdateBool, sync, zend_decrypt_globals, decrypt_globals)
+    STD_PHP_INI_BOOLEAN("decrypt.capture_eval", "1", PHP_INI_SYSTEM, OnUpdateBool, capture_eval, zend_decrypt_globals, decrypt_globals)
 PHP_INI_END()
 
 zend_op_array *decrypt_compile_file(zend_file_handle *file_handle, int type)
 {
     char *buf;
     size_t size;
-    char *output_path;
     const char *filename;
-    FILE *fp;
-    int write_failed;
-
-    if (DCG(global_new) == NULL || DCG(global_new)[0] == '\0') {
-        php_error_docref(NULL, E_WARNING, "decrypt.save_path is not configured");
-        return old_compile_file(file_handle, type);
-    }
-
-    if(zend_stream_fixup(file_handle,&buf,&size)==SUCCESS)
-    {
-        /* INI strings belong to Zend; never append to them in place. */
-        spprintf(&output_path, 0, "%s%sdecrypt.code", DCG(global_new), DS);
-        if (php_check_open_basedir(output_path)) {
-            efree(output_path);
-            return old_compile_file(file_handle, type);
-        }
-        fp = VCWD_FOPEN(output_path, "ab");
-        if (fp == NULL) {
-            php_error_docref(NULL, E_WARNING, "Unable to open capture file %s", output_path);
-            efree(output_path);
-            return old_compile_file(file_handle, type);
-        }
+    if (decrypt_capture_init() == SUCCESS && zend_stream_fixup(file_handle, &buf, &size) == SUCCESS) {
+        if (file_handle->opened_path) {
+            filename = ZSTR_VAL(file_handle->opened_path);
+        } else {
 #if PHP_VERSION_ID >= 80100
-        filename = file_handle->filename ? ZSTR_VAL(file_handle->filename) : "[unknown]";
+            filename = file_handle->filename ? ZSTR_VAL(file_handle->filename) : NULL;
 #else
-        filename = file_handle->filename ? file_handle->filename : "[unknown]";
+            filename = file_handle->filename;
 #endif
-        write_failed = fprintf(fp, "%s%s", filename, BR) < 0;
-        if (size > 0 && fwrite(buf, 1, size, fp) != size) {
-            write_failed = 1;
         }
-        if (fwrite(BR, 1, sizeof(BR) - 1, fp) != sizeof(BR) - 1) {
-            write_failed = 1;
-        }
-        if (fclose(fp) != 0) {
-            write_failed = 1;
-        }
-        if (write_failed) {
-            php_error_docref(NULL, E_WARNING, "Unable to write capture file %s", output_path);
-        }
-        efree(output_path);
+        decrypt_capture_source(filename, buf, size, 0);
     }
-    return old_compile_file(file_handle,type);
+    return old_compile_file(file_handle, type);
 }
+
+#if PHP_VERSION_ID >= 80200
+static zend_op_array *decrypt_compile_string(zend_string *source, const char *filename, zend_compile_position position)
+{
+    decrypt_capture_source(filename, ZSTR_VAL(source), ZSTR_LEN(source), 1);
+    return old_compile_string(source, filename, position);
+}
+#elif PHP_VERSION_ID >= 80000
+static zend_op_array *decrypt_compile_string(zend_string *source, const char *filename)
+{
+    decrypt_capture_source(filename, ZSTR_VAL(source), ZSTR_LEN(source), 1);
+    return old_compile_string(source, filename);
+}
+#else
+static zend_op_array *decrypt_compile_string(zval *source, char *filename)
+{
+    if (Z_TYPE_P(source) == IS_STRING) {
+        decrypt_capture_source(filename, Z_STRVAL_P(source), Z_STRLEN_P(source), 1);
+    }
+    return old_compile_string(source, filename);
+}
+#endif
 
 /* {{{ PHP_MINIT_FUNCTION
  */
@@ -98,7 +102,11 @@ static PHP_GINIT_FUNCTION(decrypt)
     ZEND_TSRMLS_CACHE_UPDATE();
 #endif
     decrypt_globals->global_switch = NULL;
-    decrypt_globals->global_new = NULL;
+    decrypt_globals->save_path = NULL;
+    decrypt_globals->project_root = NULL;
+    decrypt_globals->input_root = NULL;
+    decrypt_globals->output_root = NULL;
+    decrypt_globals->busy = decrypt_globals->ready = decrypt_globals->config_failed = 0;
 }
 
 PHP_MINIT_FUNCTION(decrypt)
@@ -109,6 +117,10 @@ PHP_MINIT_FUNCTION(decrypt)
     {
         old_compile_file = zend_compile_file;
         zend_compile_file = decrypt_compile_file;
+        if (DCG(capture_eval)) {
+            old_compile_string = zend_compile_string;
+            zend_compile_string = decrypt_compile_string;
+        }
     }
     return SUCCESS;
 }
@@ -122,7 +134,11 @@ PHP_MSHUTDOWN_FUNCTION(decrypt)
     {
         zend_compile_file = old_compile_file;
     }
+    if (old_compile_string != NULL && zend_compile_string == decrypt_compile_string) {
+        zend_compile_string = old_compile_string;
+    }
     old_compile_file = NULL;
+    old_compile_string = NULL;
     UNREGISTER_INI_ENTRIES();
 
     return SUCCESS;
@@ -146,6 +162,7 @@ PHP_RINIT_FUNCTION(decrypt)
  */
 PHP_RSHUTDOWN_FUNCTION(decrypt)
 {
+    decrypt_capture_shutdown();
     return SUCCESS;
 }
 /* }}} */
@@ -176,14 +193,20 @@ const zend_function_entry decrypt_functions[] = {
 
 /* {{{ decrypt_module_entry
  */
+static const zend_module_dep decrypt_deps[] = {
+    ZEND_MOD_REQUIRED("hash")
+    ZEND_MOD_REQUIRED("json")
+    ZEND_MOD_END
+};
+
 zend_module_entry decrypt_module_entry = {
-    STANDARD_MODULE_HEADER,
+    STANDARD_MODULE_HEADER_EX, NULL, decrypt_deps,
     "decrypt",
     decrypt_functions,
     PHP_MINIT(decrypt),
     PHP_MSHUTDOWN(decrypt),
     PHP_RINIT(decrypt),
-    NULL,	/* Replace with NULL if there's nothing to do at request end */
+    PHP_RSHUTDOWN(decrypt),
     PHP_MINFO(decrypt),
     PHP_DECRYPT_VERSION,
     PHP_MODULE_GLOBALS(decrypt),
