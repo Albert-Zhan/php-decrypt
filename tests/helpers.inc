@@ -7,9 +7,16 @@ function capture_extension() {
     return getenv('DECRYPT_EXTENSION') ?: dirname(__DIR__) . '/modules/decrypt.' . PHP_SHLIB_SUFFIX;
 }
 function capture_start($settings, $code, $script = null) {
-    $command = capture_quote(getenv('TEST_PHP_EXECUTABLE') ?: PHP_BINARY)
-        . ' -n -d ' . capture_quote('extension=' . capture_extension())
-        . ' -d display_errors=stderr -d log_errors=0';
+    // run-tests.php supplies the selected INI and extension settings here.
+    // Reuse them so shared dependencies (e.g. PHP 7 json.so) remain loaded.
+    $testArgs = getenv('TEST_PHP_EXTRA_ARGS');
+    $command = capture_quote(getenv('TEST_PHP_EXECUTABLE') ?: PHP_BINARY);
+    if ($testArgs !== false && trim($testArgs) !== '') {
+        $command .= ' ' . $testArgs;
+    } else {
+        $command .= ' -d ' . capture_quote('extension=' . capture_extension());
+    }
+    $command .= ' -d display_errors=stderr -d log_errors=0';
     foreach ($settings as $key => $value) $command .= ' -d ' . capture_quote($key . '=' . $value);
     $command .= $script === null ? ' -r ' . capture_quote($code) : ' -f ' . capture_quote($script);
     $process = proc_open($command, array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')), $pipes);
