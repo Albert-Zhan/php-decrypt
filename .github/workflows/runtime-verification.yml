@@ -1,0 +1,149 @@
+name: FPM and platform verification
+
+on:
+  push:
+    branches: [master, verification/runtime-matrix]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-fpm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+      - name: Compile, PHPT, FPM integration and complete example
+        run: |
+          export TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
+          php -v
+          PHP_BIN="$(command -v php)" PHPIZE="$(command -v phpize)" PHP_CONFIG="$(command -v php-config)" \
+            tools/test-linux.sh "$TMPDIR/decrypt-build"
+          version="$(php -r 'echo PHP_MAJOR_VERSION,".",PHP_MINOR_VERSION;')"
+          fpm="$(php-config --prefix)/sbin/php-fpm"
+          if [ ! -x "$fpm" ]; then fpm="$(command -v "php-fpm$version")"; fi
+          "$fpm" -v
+          python3 tools/test-fpm.py --fpm "$fpm" --extension "$TMPDIR/decrypt-build/modules/decrypt.so"
+          PHP_BIN="$(command -v php)" DECRYPT_EXTENSION="$TMPDIR/decrypt-build/modules/decrypt.so" \
+            examples/run-demo.sh "$TMPDIR/decrypt-demo"
+      - name: Failing PHPT differences
+        if: failure()
+        run: find "$RUNNER_TEMP/decrypt-build/tests" -name '*.diff' -exec cat {} \;
+
+  macos-fpm:
+    needs: linux-fpm
+    runs-on: macos-15
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+      - name: Compile, PHPT, FPM integration and complete example
+        run: |
+          export TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
+          sw_vers
+          uname -m
+          php -v
+          PHP_BIN="$(command -v php)" PHPIZE="$(command -v phpize)" PHP_CONFIG="$(command -v php-config)" \
+            tools/test-linux.sh "$TMPDIR/decrypt-build"
+          fpm="$(php-config --prefix)/sbin/php-fpm"
+          "$fpm" -v
+          python3 tools/test-fpm.py --fpm "$fpm" --extension "$TMPDIR/decrypt-build/modules/decrypt.so"
+          PHP_BIN="$(command -v php)" DECRYPT_EXTENSION="$TMPDIR/decrypt-build/modules/decrypt.so" \
+            examples/run-demo.sh "$TMPDIR/decrypt-demo"
+      - name: Failing PHPT differences
+        if: failure()
+        run: find "$RUNNER_TEMP/decrypt-build/tests" -name '*.diff' -exec cat {} \;
+
+  intel-mac:
+    needs: macos-fpm
+    runs-on: macos-15-intel
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+      - name: Compile, PHPT, FPM integration and complete example
+        run: |
+          export TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
+          sw_vers
+          uname -m
+          php -v
+          PHP_BIN="$(command -v php)" PHPIZE="$(command -v phpize)" PHP_CONFIG="$(command -v php-config)" \
+            tools/test-linux.sh "$TMPDIR/decrypt-build"
+          fpm="$(php-config --prefix)/sbin/php-fpm"
+          "$fpm" -v
+          python3 tools/test-fpm.py --fpm "$fpm" --extension "$TMPDIR/decrypt-build/modules/decrypt.so"
+          PHP_BIN="$(command -v php)" DECRYPT_EXTENSION="$TMPDIR/decrypt-build/modules/decrypt.so" \
+            examples/run-demo.sh "$TMPDIR/decrypt-demo"
+      - name: Failing PHPT differences
+        if: failure()
+        run: find "$RUNNER_TEMP/decrypt-build/tests" -name '*.diff' -exec cat {} \;
+
+  macos-zts:
+    needs: intel-mac
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+          extensions: ${{ matrix.php == '8.3' && 'parallel' || '' }}
+        env:
+          phpts: ts
+      - name: Verify ZTS, build, PHPT and complete example
+        run: |
+          export TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
+          sw_vers
+          uname -m
+          php -v
+          php -r 'if (!PHP_ZTS) { fwrite(STDERR, "Expected ZTS PHP\n"); exit(1); }'
+          PHP_BIN="$(command -v php)" PHPIZE="$(command -v phpize)" PHP_CONFIG="$(command -v php-config)" \
+            tools/test-linux.sh "$TMPDIR/decrypt-build"
+          PHP_BIN="$(command -v php)" DECRYPT_EXTENSION="$TMPDIR/decrypt-build/modules/decrypt.so" \
+            examples/run-demo.sh "$TMPDIR/decrypt-demo"
+      - name: Native thread capture verification
+        if: matrix.php == '8.3'
+        run: |
+          export TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
+          mkdir -p "$TMPDIR/decrypt-threads/project" "$TMPDIR/decrypt-threads/captures"
+          php -d "extension=$TMPDIR/decrypt-build/modules/decrypt.so" -d decrypt.switch=enable \
+            -d "decrypt.project_root=$TMPDIR/decrypt-threads/project" \
+            -d "decrypt.save_path=$TMPDIR/decrypt-threads/captures" -d opcache.enable_cli=0 \
+            tools/test-zts.php "$TMPDIR/decrypt-threads"
+      - name: Failing PHPT differences
+        if: failure()
+        run: find "$RUNNER_TEMP/decrypt-build/tests" -name '*.diff' -exec cat {} \;
