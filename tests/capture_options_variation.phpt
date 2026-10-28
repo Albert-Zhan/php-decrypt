@@ -8,7 +8,7 @@ if (PHP_OS === 'WINNT') die('skip Linux sync test');
 --FILE--
 <?php
 require __DIR__ . '/helpers.inc';
-$root = sys_get_temp_dir() . '/decrypt-' . uniqid();
+$root = realpath(sys_get_temp_dir()) . '/decrypt-' . uniqid();
 $project = $root . '/project';
 $output = $root . '/output with spaces';
 mkdir($root); mkdir($project); mkdir($output); mkdir($project . '/app');

@@ -7,7 +7,7 @@ if (!extension_loaded('decrypt') || !function_exists('proc_open')) die('skip dec
 --FILE--
 <?php
 require __DIR__ . '/helpers.inc';
-$root = sys_get_temp_dir() . '/decrypt-repair-' . uniqid();
+$root = realpath(sys_get_temp_dir()) . '/decrypt-repair-' . uniqid();
 $project = $root . '/project'; $output = $root . '/output';
 mkdir($root); mkdir($project); mkdir($output);
 $fixture = $project . '/index.php'; $source = '<?php /* original bytes */';

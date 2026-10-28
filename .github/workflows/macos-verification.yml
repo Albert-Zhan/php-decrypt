@@ -2,7 +2,9 @@ name: macOS compatibility verification
 
 on:
   push:
-    branches: [verification/macos]
+    branches: [master, verification/macos]
+  pull_request:
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -17,8 +19,8 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: ${{ matrix.php }}
           coverage: none
@@ -40,3 +42,7 @@ jobs:
           export TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
           PHP_BIN="$(command -v php)" DECRYPT_EXTENSION="$TMPDIR/php-decrypt-build/modules/decrypt.so" \
             examples/run-demo.sh "$TMPDIR/php-decrypt-demo"
+      - name: Show failing PHPT differences
+        if: failure()
+        run: |
+          find "$RUNNER_TEMP/php-decrypt-build/tests" -name '*.diff' -exec cat {} \;
