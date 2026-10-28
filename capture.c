@@ -1,4 +1,8 @@
 /* Source storage for PHP Decrypt. See LICENSE (Apache-2.0). */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "php.h"
 #include "php_decrypt.h"
 #include "capture.h"

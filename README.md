@@ -8,7 +8,7 @@ PHP Decrypt 在 PHP 文件编译和字符串编译入口捕获源码。0.2 起�
 
 ## 编译
 
-需要 PHP CLI 和对应的开发工具、C 编译器、make、autoconf。PHP 必须包含 `hash` 和 `json` 扩展。Linux 是本版的主要验证平台，具体结果见 [测试记录](docs/testing.md)；Windows、macOS、ZTS 和第三方加密扩展组合尚未验证。
+需要 PHP CLI 和对应的开发工具、C 编译器、make、autoconf。PHP 必须包含 `hash` 和 `json` 扩展。Linux 是本版的主要验证平台，具体结果见 [测试记录](docs/testing.md)；已验证的 ZTS 构建仅覆盖 CLI；Windows、macOS、FPM、多线程并行请求和第三方加密扩展组合尚未验证。
 
 ```bash
 git clone https://github.com/Albert-Zhan/php-decrypt.git
