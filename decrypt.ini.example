@@ -1,0 +1,19 @@
+; PHP Decrypt 0.2: use an absolute module path matching this PHP build.
+extension=/absolute/path/to/decrypt.so
+
+[decrypt]
+; Capturing is opt-in; INI_SYSTEM settings require process restart for FPM.
+decrypt.switch=enable
+
+; Existing absolute paths. Use a separate, private output directory per project.
+decrypt.project_root=/www/shop
+decrypt.save_path=/data/php-captures/shop
+
+; Keep content-addressed objects for historical versions.
+decrypt.history=1
+; Append one JSONL record per published version transition.
+decrypt.index=1
+; Capture eval/string-compiler bodies independently of the original loader.
+decrypt.capture_eval=1
+; Linux: fsync file data and directory updates. Higher latency; default off.
+decrypt.sync=0

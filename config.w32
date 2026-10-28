@@ -4,5 +4,8 @@
 ARG_ENABLE("decrypt", "enable decrypt support", "yes");
 
 if (PHP_DECRYPT == "yes") {
-	EXTENSION("decrypt", "decrypt.c", null, "/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1");
+	EXTENSION("decrypt", "decrypt.c capture.c", null, "/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1");
+	ADD_EXTENSION_DEP("decrypt", "hash");
+	ADD_EXTENSION_DEP("decrypt", "json");
 }
+
