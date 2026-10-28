@@ -2,9 +2,9 @@
 # Usage: PHP_BIN=/path/php PHPIZE=/path/phpize PHP_CONFIG=/path/php-config tools/test-linux.sh /tmp/build-dir
 set -euo pipefail
 repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
-php_bin=${PHP_BIN:-php}
-phpize_bin=${PHPIZE:-phpize}
-php_config_bin=${PHP_CONFIG:-php-config}
+php_bin=$(command -v "${PHP_BIN:-php}")
+phpize_bin=$(command -v "${PHPIZE:-phpize}")
+php_config_bin=$(command -v "${PHP_CONFIG:-php-config}")
 build_dir=${1:-$(mktemp -d /tmp/php-decrypt-test.XXXXXX)}
 mkdir -p "$build_dir"
 build_dir=$(cd "$build_dir" && pwd -P)
@@ -34,5 +34,9 @@ for argument in "${PHP_DECRYPT_ISOLATED_ARGS[@]:1}" -d "extension=$DECRYPT_EXTEN
     quoted=$("$php_bin" -r 'echo escapeshellarg($argv[1]);' -- "$argument")
     shared_flags="$shared_flags $quoted"
 done
-make test TESTS=tests "PHP_TEST_SHARED_EXTENSIONS=$shared_flags"
+make test PHP_EXECUTABLE="$php_bin" TESTS=tests "PHP_TEST_SHARED_EXTENSIONS=$shared_flags" | tee "$build_dir/test-results.log"
+if ! grep -Eq '^Tests passed[[:space:]]*:[[:space:]]*[1-9][0-9]*' "$build_dir/test-results.log"; then
+    echo 'PHPT verification did not run any passing tests.' >&2
+    exit 1
+fi
 printf 'Extension: %s\n' "$DECRYPT_EXTENSION"
