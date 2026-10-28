@@ -31,7 +31,7 @@ php_decrypt_isolated_args "$php_bin"
     -r 'if (!extension_loaded("decrypt")) exit(1);'
 shared_flags=""
 for argument in "${PHP_DECRYPT_ISOLATED_ARGS[@]:1}" -d "extension=$DECRYPT_EXTENSION"; do
-    quoted=$("$php_bin" -r 'echo escapeshellarg($argv[1]);' "$argument")
+    quoted=$("$php_bin" -r 'echo escapeshellarg($argv[1]);' -- "$argument")
     shared_flags="$shared_flags $quoted"
 done
 make test TESTS=tests "PHP_TEST_SHARED_EXTENSIONS=$shared_flags"
