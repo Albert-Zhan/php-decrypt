@@ -1,4 +1,3 @@
-// $Id$
 // vim:ft=javascript
 
 ARG_ENABLE("decrypt", "enable decrypt support", "yes");
@@ -8,4 +7,3 @@ if (PHP_DECRYPT == "yes") {
 	ADD_EXTENSION_DEP("decrypt", "hash");
 	ADD_EXTENSION_DEP("decrypt", "json");
 }
-

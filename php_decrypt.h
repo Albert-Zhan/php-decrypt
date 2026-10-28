@@ -1,7 +1,5 @@
 /**
   +----------------------------------------------------------------------+
-  | PHP Version 7                                                        |
-  +----------------------------------------------------------------------+
   | Copyright (c) 1997-2017 The PHP Group                                |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
@@ -16,8 +14,6 @@
   +----------------------------------------------------------------------+
 */
 
-/* $Id$ */
-
 #ifndef PHP_DECRYPT_H
 #define PHP_DECRYPT_H
 
@@ -25,14 +21,6 @@ extern zend_module_entry decrypt_module_entry;
 #define phpext_decrypt_ptr &decrypt_module_entry
 
 #define PHP_DECRYPT_VERSION "0.2.0"
-
-#ifdef PHP_WIN32
-#   define PHP_DECRYPT_API __declspec(dllexport)
-#elif defined(__GNUC__) && __GNUC__ >= 4
-#   define PHP_DECRYPT_API __attribute__ ((visibility("default")))
-#else
-#   define PHP_DECRYPT_API
-#endif
 
 #ifdef ZTS
 #include "TSRM.h"
@@ -67,13 +55,3 @@ ZEND_TSRMLS_CACHE_EXTERN()
 #endif
 
 #endif	/* PHP_DECRYPT_H */
-
-
-/*
- * Local variables:
- * tab-width: 4
- * c-basic-offset: 4
- * End:
- * vim600: noet sw=4 ts=4 fdm=marker
- * vim<600: noet sw=4 ts=4
- */
