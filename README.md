@@ -146,7 +146,7 @@ examples/run-demo.sh /tmp/php-decrypt-demo
 ## 使用限制
 
 - **OPcache：** 缓存命中可能跳过文件编译钩子，不能假设每次请求都重新捕获。快速使用命令和集成测试关闭了对应的 OPcache 功能。
-- **扩展组合：** 第三方加密扩展能否把明文交给这些入口、以及与 OPcache/Xdebug 的兼容性，需要逐一验证实现和加载顺序。
+- **扩展组合：** 已在 PHP 7.4.33 NTS 的 CLI/FPM 验证 php-beast 2.7 的 DES、AES 和 ASCII BASE64；必须先加载 `decrypt.so`，再加载 `beast.so`。中文 BASE64 存在上游问题，详见 [php-beast 集成验证](docs/beast-testing.md)。其他加密扩展及 OPcache/Xdebug 组合仍需逐一验证。
 - **写入与恢复：** 源码通过同目录临时文件完整写入后再重命名发布，但多个输出文件之间没有事务保证。异常中断及同步选项的边界见[存储与恢复](docs/storage.md#写入与故障恢复)。
 
 ## 测试与开发
@@ -164,6 +164,7 @@ tools/test-linux.sh /tmp/php-decrypt-build
 |---|---|
 | [基础测试与性能记录](docs/testing.md) | PHPT 场景、示例结果及本地微基准 |
 | [运行环境验证](docs/runtime-testing.md) | Linux/macOS、Intel、FPM 和 ZTS 的验证矩阵及复现方法 |
+| [php-beast 集成验证](docs/beast-testing.md) | PHP 7 的真实扩展加密、加载顺序、明文校验和 FPM 检查 |
 | [tools/test-fpm.py](tools/test-fpm.py) | 真实 FPM 连续请求、异常恢复和多 worker 并发检查 |
 | [tools/test-zts.php](tools/test-zts.php) | 配合 `parallel` 进行原生线程捕获检查 |
 | [tools/verify-captures.php](tools/verify-captures.php) | 校验索引引用的对象与文件，按索引恢复镜像 |
