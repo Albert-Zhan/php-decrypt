@@ -3,7 +3,7 @@ capture options variation
 --SKIPIF--
 <?php
 if (!extension_loaded('decrypt') || !function_exists('proc_open')) die('skip decrypt and proc_open required');
-if (PHP_OS === 'WINNT') die('skip Linux sync test');
+if (PHP_OS === 'WINNT') die('skip POSIX sync test');
 ?>
 --FILE--
 <?php
@@ -26,9 +26,9 @@ try {
         && !file_exists($light . '/index.jsonl'), 'history and index can be disabled');
     $sync = $root . '/sync'; mkdir($sync);
     $result = capture_run(capture_settings($project, $sync, array('decrypt.sync' => 1)), $include);
-    capture_check($result === array(0, '', '') && count(capture_records($sync)) === 1, 'strict Linux sync mode');
+    capture_check($result === array(0, '', '') && count(capture_records($sync)) === 1, 'strict POSIX sync mode');
 } finally { capture_remove($root); }
 ?>
 --EXPECT--
 history and index can be disabled
-strict Linux sync mode
+strict POSIX sync mode

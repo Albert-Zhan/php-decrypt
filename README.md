@@ -8,13 +8,13 @@ PHP Decrypt 在 PHP 文件编译和字符串编译入口捕获源码。0.2 起�
 
 ## 平台范围
 
-项目以 **Linux** 作为支持和验证平台。Windows 宿主机用户使用 WSL2 或 Linux 容器时，请在其中使用 Linux 版 PHP 及对应工具链，按下述 Linux 流程编译和运行。
+项目支持 **Linux**，并已在 **macOS 15.7.9 / Apple Silicon（arm64）** 上验证 PHP 7.4.33、8.3.36 的 CLI 构建、测试及完整示例。macOS Intel、其他 macOS/PHP 版本和 macOS ZTS 尚未验证。Windows 宿主机用户使用 WSL2 或 Linux 容器时，请在其中使用 Linux 版 PHP 及对应工具链，按下述 Linux 流程编译和运行。
 
 原生 Windows 不属于项目支持范围。[config.w32](config.w32) 和现有 Windows 条件编译代码仅作为开发者自行适配、编译的参考保留，不代表 Windows 构建可用或经过验证。
 
 ## 编译
 
-需要 PHP CLI 和对应的开发工具、C 编译器、make、autoconf。PHP 必须包含 `hash` 和 `json` 扩展。Linux 下的具体结果见 [测试记录](docs/testing.md)；已验证的 ZTS 构建仅覆盖 CLI。macOS、FPM、多线程并行请求和第三方加密扩展组合尚未验证。
+需要 PHP CLI 和对应的开发工具、C 编译器、make、autoconf。PHP 必须包含 `hash` 和 `json` 扩展。各平台的具体结果见 [测试记录](docs/testing.md)；已验证的 ZTS 构建仅覆盖 Linux CLI。FPM、多线程并行请求和第三方加密扩展组合尚未验证。
 
 ```bash
 git clone https://github.com/Albert-Zhan/php-decrypt.git
@@ -27,6 +27,28 @@ sudo make install
 ```
 
 多版本 PHP 要使用同一版本的 `php`、`phpize` 和 `php-config`。每个 PHP API 版本需分别编译模块，不能混用 `.so`。
+
+### macOS 构建
+
+使用已安装的 Xcode Command Line Tools 和 Homebrew。以下以 [Homebrew PHP 8.3](https://formulae.brew.sh/formula/php@8.3) 为例，不依赖固定的 Intel/Apple Silicon 安装目录：
+
+```bash
+brew install php@8.3 autoconf pkgconf
+PHP_PREFIX="$(brew --prefix php@8.3)"
+"$PHP_PREFIX/bin/phpize"
+./configure --enable-decrypt --with-php-config="$PHP_PREFIX/bin/php-config"
+make -j2
+TEST_PHP_EXECUTABLE="$PHP_PREFIX/bin/php" make test TESTS=tests
+```
+
+macOS 的 `/tmp`、`/var` 等路径可能包含系统符号链接。输出目录需要使用物理路径，以保留扩展现有的符号链接保护规则。例如：
+
+```bash
+mkdir -p /tmp/php-captures-shop
+cd /tmp/php-captures-shop && pwd -P
+```
+
+将打印的路径（例如 `/private/tmp/php-captures-shop`）用于 `decrypt.save_path`。示例和测试脚本会使用物理路径。APFS 只接受有效 UTF-8 文件名，对应的非 UTF-8 文件名测试会按文件系统能力跳过；中文文件名和二进制源码仍有测试覆盖。严格同步采用 `fsync()`，不声称已验证断电持久性。
 
 ## 配置
 
@@ -55,7 +77,7 @@ decrypt.sync=0
 | `decrypt.history` | `1` | 保存按 SHA-256 去重的原始内容对象 |
 | `decrypt.index` | `1` | 记录版本变化；关闭后不生成可供历史恢复的索引 |
 | `decrypt.capture_eval` | `1` | 捕获来源位于项目内的 `eval()` / 字符串编译内容 |
-| `decrypt.sync` | `0` | Linux 下同步文件及目录更新，提高持久性并增加延迟 |
+| `decrypt.sync` | `0` | Linux/macOS 下同步文件及目录更新，提高持久性并增加延迟 |
 
 建议输出目录放在项目之外。允许放在项目内部的独立子目录，但该子树会被排除；输出目录不能等于或包含项目根目录。输出路径受 `open_basedir` 限制，拒绝已有的符号链接。输出目录及其父目录应由可信用户控制，不应允许其他进程恶意改动目录结构。
 
@@ -133,7 +155,7 @@ OPcache 命中时文件编译钩子可能被跳过，因此不能假设每次请
 
 ## 测试和性能
 
-Linux 下可用独立构建目录执行完整测试：
+Linux/macOS 下可用独立构建目录执行完整测试（脚本沿用原名称）：
 
 ```bash
 PHP_BIN=/path/to/php PHPIZE=/path/to/phpize PHP_CONFIG=/path/to/php-config \
