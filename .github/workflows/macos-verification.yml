@@ -1,0 +1,42 @@
+name: macOS compatibility verification
+
+on:
+  push:
+    branches: [verification/macos]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.3']
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+      - name: Environment
+        run: |
+          sw_vers
+          uname -m
+          php -v
+          phpize --version
+          php-config --version
+      - name: Compile and run PHPT tests
+        run: |
+          export TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
+          PHP_BIN="$(command -v php)" PHPIZE="$(command -v phpize)" PHP_CONFIG="$(command -v php-config)" \
+            tools/test-linux.sh "$TMPDIR/php-decrypt-build"
+      - name: Capture, verify and restore the example project
+        run: |
+          export TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
+          PHP_BIN="$(command -v php)" DECRYPT_EXTENSION="$TMPDIR/php-decrypt-build/modules/decrypt.so" \
+            examples/run-demo.sh "$TMPDIR/php-decrypt-demo"
