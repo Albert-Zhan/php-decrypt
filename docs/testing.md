@@ -2,7 +2,9 @@
 
 验证日期：2026-10-28。环境：Ubuntu 24.04、Linux x86_64、GCC 13.3.0、本地文件系统。Linux 运行时从 php.net 的发行源码编译，启用 CLI、hash、json，未加载 OPcache 或第三方加密扩展。macOS 通过 GitHub Actions 的 macos-15（macOS 15.7.9、Apple Silicon arm64）原生运行，使用 setup-php 配置 PHP；捕获测试子进程及示例使用隔离的 INI 配置。
 
-## 最终验证矩阵
+本轮已补充 Linux/macOS FPM、Intel Mac 和 macOS ZTS（含 PHP 8.3 原生线程）；完整结果及复现见 [运行环境验证](runtime-testing.md)。
+
+## 基础验证矩阵
 
 | 平台 / PHP / 模式 | 扩展构建流程 | PHPT | Base64 + eval 示例 |
 |---|---|---|---|
@@ -12,7 +14,7 @@
 | macOS 15.7.9 arm64 / 7.4.33 NTS | phpize → configure → make，通过 | 11 通过、1 按 APFS 能力跳过、0 失败 | 捕获、校验、恢复、再次执行通过 |
 | macOS 15.7.9 arm64 / 8.3.36 NTS | phpize → configure → make，通过 | 11 通过、1 按 APFS 能力跳过、0 失败 | 捕获、校验、恢复、再次执行通过 |
 
-扩展编译使用 `-g -O2 -Wall -Wextra -Werror -Wno-unused-parameter`。PHP 7.0 和 8.0 曾进行补充构建排查，但最终修改后的完整矩阵尚未完成，因此不列为本版已验证版本。原生 Windows 不属于支持范围；`config.w32` 及条件编译代码仅供开发者自行适配参考，不纳入本验证矩阵。macOS Intel、macOS ZTS、其他 macOS/PHP 版本、FPM、ZTS 多线程并行请求、网络文件系统及商业加密扩展组合未验证。ZTS 结果仅指以 ZTS 模式构建的 CLI 运行。
+扩展编译使用 `-g -O2 -Wall -Wextra -Werror -Wno-unused-parameter`。PHP 7.0 和 8.0 曾进行补充构建排查，但最终修改后的完整矩阵尚未完成，因此不列为本版已验证版本。原生 Windows 不属于支持范围；`config.w32` 及条件编译代码仅供开发者自行适配参考，不纳入本验证矩阵。本表保留基础 CLI 构建记录；新增 Intel Mac、FPM 和 ZTS 线程结果以 [运行环境验证](runtime-testing.md) 为准。其他 macOS/PHP 版本、网络文件系统及商业加密扩展组合未验证。
 
 ## 测试内容
 

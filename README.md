@@ -8,13 +8,13 @@ PHP Decrypt 在 PHP 文件编译和字符串编译入口捕获源码。0.2 起�
 
 ## 平台范围
 
-项目支持 **Linux**，并已在 **macOS 15.7.9 / Apple Silicon（arm64）** 上验证 PHP 7.4.33、8.3.36 的 CLI 构建、测试及完整示例。macOS Intel、其他 macOS/PHP 版本和 macOS ZTS 尚未验证。Windows 宿主机用户使用 WSL2 或 Linux 容器时，请在其中使用 Linux 版 PHP 及对应工具链，按下述 Linux 流程编译和运行。
+项目支持 **Linux** 和 **macOS**。已在 macOS 15.7.9 的 Apple Silicon（arm64）及 Intel（x86_64）上验证 PHP 7.4.33、8.3.36 的 CLI 和 FPM；另验证了 Apple Silicon 的对应 ZTS CLI，并对 PHP 8.3 ZTS 执行了真实线程捕获。具体版本和限制见 [运行环境验证](docs/runtime-testing.md)。Windows 宿主机用户使用 WSL2 或 Linux 容器时，请在其中使用 Linux 版 PHP 及对应工具链，按下述 Linux 流程编译和运行。
 
 原生 Windows 不属于项目支持范围。[config.w32](config.w32) 和现有 Windows 条件编译代码仅作为开发者自行适配、编译的参考保留，不代表 Windows 构建可用或经过验证。
 
 ## 编译
 
-需要 PHP CLI 和对应的开发工具、C 编译器、make、autoconf。PHP 必须包含 `hash` 和 `json` 扩展。各平台的具体结果见 [测试记录](docs/testing.md)；已验证的 ZTS 构建仅覆盖 Linux CLI。FPM、多线程并行请求和第三方加密扩展组合尚未验证。
+需要 PHP CLI 和对应的开发工具、C 编译器、make、autoconf。PHP 必须包含 `hash` 和 `json` 扩展。各平台的具体结果见 [测试记录](docs/testing.md)及 [FPM / ZTS 验证](docs/runtime-testing.md)。第三方加密扩展、OPcache/Xdebug 组合和生产长期负载仍需单独验证。
 
 ```bash
 git clone https://github.com/Albert-Zhan/php-decrypt.git
@@ -151,7 +151,7 @@ examples/run-demo.sh /tmp/php-decrypt-demo
 
 ## OPcache 和扩展组合
 
-OPcache 命中时文件编译钩子可能被跳过，因此不能假设每次请求都捕获全部文件。CLI 示例使用 `-n` 避免加载其他扩展。使用第三方加密扩展时需逐一验证它是否将明文交给这些编译入口及加载顺序；本版不宣称通用解密能力。
+OPcache 命中时文件编译钩子可能被跳过，因此不能假设每次请求都捕获全部文件。CLI 示例使用 `-n` 隔离配置，并在所选 PHP 将 hash/json 构建为共享模块时显式载入这两个依赖。使用第三方加密扩展时需逐一验证它是否将明文交给这些编译入口及加载顺序；本版不宣称通用解密能力。
 
 ## 测试和性能
 
@@ -169,6 +169,11 @@ DECRYPT_EXTENSION="$PWD/modules/decrypt.so" php -n tools/benchmark.php 200 20480
 ```
 
 它会实际运行生成的无业务逻辑 PHP 文件，不代表 FPM 业务负载、慢磁盘、网络文件系统或严格同步模式的性能。更多验证细节见 [测试记录](docs/testing.md)。
+
+
+### FPM 和原生线程验证
+
+`tools/test-fpm.py` 可启动临时 FPM 池，验证同一 worker 连续请求、异常与退出后的恢复、版本变化和多 worker 并发。PHP 8.3 ZTS 还可通过 `tools/test-zts.php` 配合 parallel 运行真实线程捕获。运行方法、完整矩阵及验证限制见 [运行环境验证](docs/runtime-testing.md)。
 
 ## License
 
