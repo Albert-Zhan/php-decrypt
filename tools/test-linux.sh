@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Usage: PHP_BIN=/path/php PHPIZE=/path/phpize PHP_CONFIG=/path/php-config tools/test-linux.sh /tmp/build-dir
 set -euo pipefail
-repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 php_bin=${PHP_BIN:-php}
 phpize_bin=${PHPIZE:-phpize}
 php_config_bin=${PHP_CONFIG:-php-config}
 build_dir=${1:-$(mktemp -d /tmp/php-decrypt-test.XXXXXX)}
 mkdir -p "$build_dir"
-build_dir=$(cd "$build_dir" && pwd)
+build_dir=$(cd "$build_dir" && pwd -P)
 if [[ "$build_dir" == "$repo_dir" || -e "$build_dir/configure" ]]; then
     echo 'Use an empty build directory outside the repository.' >&2
     exit 1

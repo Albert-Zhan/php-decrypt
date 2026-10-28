@@ -7,7 +7,7 @@ if (PHP_OS === 'WINNT' || !extension_loaded('decrypt') || !function_exists('proc
 --FILE--
 <?php
 require __DIR__ . '/helpers.inc';
-$root = sys_get_temp_dir() . '/decrypt-concurrent-' . uniqid();
+$root = realpath(sys_get_temp_dir()) . '/decrypt-concurrent-' . uniqid();
 $project = $root . '/project'; $output = $root . '/output';
 mkdir($root); mkdir($project); mkdir($output);
 $fixture = $project . '/index.php'; $source = '<?php /*' . str_repeat('a', 256 * 1024) . '*/';

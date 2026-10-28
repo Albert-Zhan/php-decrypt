@@ -7,7 +7,7 @@ if (PHP_OS === 'WINNT' || !extension_loaded('decrypt') || !function_exists('proc
 --FILE--
 <?php
 require __DIR__ . '/helpers.inc';
-$root = sys_get_temp_dir() . '/decrypt-fail-' . uniqid();
+$root = realpath(sys_get_temp_dir()) . '/decrypt-fail-' . uniqid();
 $project = $root . '/project'; $output = $root . '/output'; $outside = $root . '/project-other';
 mkdir($root); mkdir($project); mkdir($output); mkdir($outside);
 $fixture = $project . '/index.php'; file_put_contents($fixture, "<?php echo 'ok';");

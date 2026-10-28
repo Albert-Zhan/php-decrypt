@@ -7,7 +7,7 @@ if (!$extension || !is_file($extension)) { fwrite(STDERR, "Set DECRYPT_EXTENSION
 $count = isset($argv[1]) ? (int)$argv[1] : 200;
 $size = isset($argv[2]) ? (int)$argv[2] : 20480;
 if ($count < 1 || $count > 5000 || $size < 128 || $size > 1048576) exit(2);
-$root = sys_get_temp_dir() . '/decrypt-bench-' . uniqid();
+$root = realpath(sys_get_temp_dir()) . '/decrypt-bench-' . uniqid();
 mkdir($root); mkdir($root . '/project');
 function remove_bench($path) {
     foreach (scandir($path) as $name) if ($name !== '.' && $name !== '..') {

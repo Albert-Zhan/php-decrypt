@@ -1,22 +1,24 @@
-# Linux 验证记录
+# Linux / macOS 验证记录
 
-验证日期：2026-10-28。环境：Ubuntu 24.04、Linux x86_64、GCC 13.3.0、本地文件系统。运行时均从 php.net 的发行源码编译，启用 CLI、hash、json，未加载 OPcache 或第三方加密扩展。
+验证日期：2026-10-28。环境：Ubuntu 24.04、Linux x86_64、GCC 13.3.0、本地文件系统。Linux 运行时从 php.net 的发行源码编译，启用 CLI、hash、json，未加载 OPcache 或第三方加密扩展。macOS 通过 GitHub Actions 的 macos-15（macOS 15.7.9、Apple Silicon arm64）原生运行，使用 setup-php 配置 PHP；捕获测试子进程及示例使用隔离的 INI 配置。
 
 ## 最终验证矩阵
 
-| PHP / 模式 | 扩展构建流程 | PHPT | Base64 + eval 示例 |
+| 平台 / PHP / 模式 | 扩展构建流程 | PHPT | Base64 + eval 示例 |
 |---|---|---|---|
-| 7.4.33 NTS | phpize → configure → make，通过 | 11/11 通过，0 跳过 | 捕获、校验、恢复、再次执行通过 |
-| 8.3.6 NTS | phpize → configure → make，通过 | 11/11 通过，0 跳过 | 捕获、校验、恢复、再次执行通过 |
-| 8.3.6 ZTS | phpize → configure → make，通过 | 11/11 通过，0 跳过 | 捕获、校验、恢复、再次执行通过 |
+| Linux / 7.4.33 NTS | phpize → configure → make，通过 | 12/12 通过，0 跳过 | 捕获、校验、恢复、再次执行通过 |
+| Linux / 8.3.6 NTS | phpize → configure → make，通过 | 12/12 通过，0 跳过 | 捕获、校验、恢复、再次执行通过 |
+| Linux / 8.3.6 ZTS | phpize → configure → make，通过 | 12/12 通过，0 跳过 | 捕获、校验、恢复、再次执行通过 |
+| macOS 15.7.9 arm64 / 7.4.33 NTS | phpize → configure → make，通过 | 11 通过、1 按 APFS 能力跳过、0 失败 | 捕获、校验、恢复、再次执行通过 |
+| macOS 15.7.9 arm64 / 8.3.36 NTS | phpize → configure → make，通过 | 11 通过、1 按 APFS 能力跳过、0 失败 | 捕获、校验、恢复、再次执行通过 |
 
-扩展编译使用 `-g -O2 -Wall -Wextra -Werror -Wno-unused-parameter`。PHP 7.0 和 8.0 曾进行补充构建排查，但最终修改后的完整矩阵尚未完成，因此不列为本版已验证版本。原生 Windows 不属于支持范围；`config.w32` 及条件编译代码仅供开发者自行适配参考，不纳入本验证矩阵。macOS、FPM、ZTS 多线程并行请求、网络文件系统及商业加密扩展组合未验证。ZTS 结果仅指以 ZTS 模式构建的 CLI 运行。
+扩展编译使用 `-g -O2 -Wall -Wextra -Werror -Wno-unused-parameter`。PHP 7.0 和 8.0 曾进行补充构建排查，但最终修改后的完整矩阵尚未完成，因此不列为本版已验证版本。原生 Windows 不属于支持范围；`config.w32` 及条件编译代码仅供开发者自行适配参考，不纳入本验证矩阵。macOS Intel、macOS ZTS、其他 macOS/PHP 版本、FPM、ZTS 多线程并行请求、网络文件系统及商业加密扩展组合未验证。ZTS 结果仅指以 ZTS 模式构建的 CLI 运行。
 
 ## 测试内容
 
-11 个 PHPT 包含 37 项场景检查：
+12 个 PHPT 包含 37 项场景检查；APFS 跳过其中 1 项非 UTF-8 文件名检查：
 
-- `capture_disabled_basic.phpt`、`capture_binary_basic.phpt`、`capture_history_variation.phpt`、`capture_empty_recovery.phpt`、`capture_options_variation.phpt`、`capture_paths_variation.phpt`：默认和显式关闭、原始字节与 NUL、Unicode/非 UTF-8 路径、重复 include、跨进程跳过重复发布、同内容跨路径去重、A→B→A 版本变化、空文件、缺失镜像恢复、history/index 开关、严格同步、include_path 解析、废弃输出与临时文件清理。
+- `capture_disabled_basic.phpt`、`capture_binary_basic.phpt`、`capture_history_variation.phpt`、`capture_empty_recovery.phpt`、`capture_options_variation.phpt`、`capture_paths_variation.phpt`、`capture_non_utf8_path.phpt`：默认和显式关闭、原始字节与 NUL、Unicode/非 UTF-8 路径、重复 include、跨进程跳过重复发布、同内容跨路径去重、A→B→A 版本变化、空文件、缺失镜像恢复、history/index 开关、严格同步、include_path 解析、废弃输出与临时文件清理。
 - `eval.phpt`：Base64 与嵌套 eval、带括号的来源路径、保留包装源码、重复片段去重、eval 开关、应用 JSON 错误状态保持。
 - `failures.phpt`：配置错误、缺失输出目录、open_basedir、项目边界、输入和输出符号链接、发布失败保留原镜像、截断索引尾行、索引写入失败后的重试。
 - `concurrency.phpt`：8 个进程捕获同一路径、不同路径共享内容对象与 JSONL 并发追加、读取者在连续替换时只观察到完整旧内容或新内容。
@@ -28,7 +30,7 @@
 
 ## 完整示例结果
 
-上述三个构建均输出：
+上述五个构建均输出：
 
 ```text
 Hello from captured PHP
@@ -48,7 +50,7 @@ Hello from captured PHP
 
 | PHP | 关闭捕获 | 首次捕获 | 未变更内容再次捕获 |
 |---|---:|---:|---:|
-| 7.4.33 NTS | 8.984 ms | 68.535 ms | 39.552 ms |
+| Linux / 7.4.33 NTS | 8.984 ms | 68.535 ms | 39.552 ms |
 | 8.3.6 | 8.766 ms | 67.950 ms | 39.333 ms |
 
 未变更路径跳过源码及版本索引写入，但仍计算输入内容哈希、获取路径锁、读取状态及检查输出类型和大小，因此开销仍明显。不要将此结果视为生产请求耗时、网络磁盘或严格同步模式的性能保证；建议按需开启捕获。
@@ -68,3 +70,11 @@ examples/run-demo.sh /tmp/decrypt-demo-output
 ## 主分支整理范围
 
 本轮删除未引用的 lib.h、未使用导出宏和模板残留，修正源文件权限；限制内部钩子可见性，补齐头文件依赖；拆分测试并继承测试框架子进程参数；为 capture.c 加入配置头文件。未修改捕获、去重、索引格式、目录映射、默认 INI 或请求生命周期逻辑。示例的路径、原始字节、内容哈希和对象映射与功能提交一致。
+
+## macOS 原生验证
+
+[GitHub Actions 原生验证记录](https://github.com/Albert-Zhan/php-decrypt/actions/runs/40657303898)覆盖 macOS 15.7.9 arm64，PHP 7.4.33 和 8.3.36。首次验证两者均编译成功，仅原路径测试中创建无效 UTF-8 文件名失败；按文件系统能力拆分检查后，两个版本的全部适用测试及示例均通过。
+
+编译钩子、去重和存储 C 核心未因本轮适配改动。示例、测试和基准使用物理路径，避免 `/var`、`/tmp` 系统符号链接与输出保护冲突。CI 使用固定版本的 checkout/setup-php，并在 macOS runner 中运行编译、PHPT、完整示例；失败时打印 PHPT 差异。物理路径的构建与配置方法见 README。
+
+非 UTF-8 路径测试通过创建探针判断文件系统能力，APFS 上的跳过不代表丢弃失败用例；在 Linux 本地文件系统上该检查继续执行并通过。macOS 的 `fsync()` 调用已通过严格同步测试，但未进行断电试验或验证 `F_FULLFSYNC`。
