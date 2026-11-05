@@ -67,6 +67,16 @@ def request(address, script, query=''):
         return header.decode(errors='replace'), payload.decode(errors='replace'), errors.decode(errors='replace')
 
 
+def response_json(response, allow_warning=False):
+    header, payload, errors = response
+    if 'Status: 500' in header or (errors and not allow_warning):
+        raise RuntimeError('Unexpected FPM response: ' + repr(response))
+    try:
+        return json.loads(payload)
+    except ValueError as error:
+        raise RuntimeError('Invalid FPM JSON response: ' + repr(response)) from error
+
+
 def rows(output):
     return [json.loads(line) for line in (output / 'index.jsonl').read_text().splitlines()]
 
@@ -154,9 +164,7 @@ echo json_encode(array('pid' => getmypid(), 'value' => $value, 'decoded' => $dec
     pool = Pool(args, root / 'serial-pool', project, output, 1)
     try:
         def normal(expected='A', allow_warning=False):
-            header, payload, errors = request(pool.address, script)
-            assert 'Status: 500' not in header and (not errors or allow_warning), (header, errors)
-            body = json.loads(payload)
+            body = response_json(request(pool.address, script), allow_warning=allow_warning)
             assert body['value'] == expected and body['decoded'] == 'decoded', body
             return body['pid']
         pid = normal()
@@ -197,9 +205,8 @@ echo json_encode(array('pid' => getmypid(), 'value' => $value, 'decoded' => $dec
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
             responses = list(executor.map(lambda _: request(parallel.address, script, 'mode=parallel'), range(24)))
         pids = set()
-        for header, payload, errors in responses:
-            assert 'Status: 500' not in header and (not errors or allow_warning), (header, errors)
-            body = json.loads(payload)
+        for response in responses:
+            body = response_json(response)
             assert body['value'] == 'A' and body['decoded'] == 'decoded'
             pids.add(body['pid'])
         assert len(pids) >= 2, 'Requests did not exercise multiple workers'

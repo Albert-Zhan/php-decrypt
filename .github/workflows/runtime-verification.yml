@@ -25,6 +25,8 @@ jobs:
           php-version: ${{ matrix.php }}
           coverage: none
           tools: none
+      - name: FPM response diagnostic regression checks
+        run: python3 -B tests/test_fpm_diagnostics.py
       - name: Compile, PHPT, FPM integration and complete example
         run: |
           export TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"

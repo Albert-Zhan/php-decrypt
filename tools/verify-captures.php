@@ -11,7 +11,9 @@ if ($root === false || !is_dir($root)) {
 }
 function checked_capture_path($root, $relative) {
     if ($relative === '' || $relative[0] === '/' || strpos($relative, "\0") !== false
-        || strpos($relative, '\\') !== false) throw new Exception('Unsafe relative path');
+        || (DIRECTORY_SEPARATOR === '\\' && strpos($relative, '\\') !== false)) {
+        throw new Exception('Unsafe relative path');
+    }
     $path = $root;
     foreach (explode('/', $relative) as $component) {
         if ($component === '' || $component === '.' || $component === '..') throw new Exception('Unsafe path component');

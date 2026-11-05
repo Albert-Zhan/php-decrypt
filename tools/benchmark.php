@@ -4,6 +4,17 @@
  */
 $extension = getenv('DECRYPT_EXTENSION');
 if (!$extension || !is_file($extension)) { fwrite(STDERR, "Set DECRYPT_EXTENSION to the built module\n"); exit(2); }
+function bench_php_command() {
+    return 'PHP_BIN=' . escapeshellarg(PHP_BINARY) . ' bash ' . escapeshellarg(__DIR__ . '/php-runtime.sh');
+}
+// A caller using -n may have disabled shared hash/json modules in PHP 7.
+// Bootstrap the parent through the same launcher used for every measured child.
+if (!extension_loaded('hash') || !extension_loaded('json')) {
+    $command = bench_php_command() . ' ' . escapeshellarg(__FILE__);
+    foreach (array_slice($argv, 1) as $argument) $command .= ' ' . escapeshellarg($argument);
+    passthru($command, $status);
+    exit($status);
+}
 $count = isset($argv[1]) ? (int)$argv[1] : 200;
 $size = isset($argv[2]) ? (int)$argv[2] : 20480;
 if ($count < 1 || $count > 5000 || $size < 128 || $size > 1048576) exit(2);
@@ -17,7 +28,7 @@ function remove_bench($path) {
     rmdir($path);
 }
 function bench_run($extension, $project, $output, $enabled) {
-    $command = escapeshellarg(PHP_BINARY) . ' -n -d ' . escapeshellarg('extension=' . $extension)
+    $command = bench_php_command() . ' -d ' . escapeshellarg('extension=' . $extension)
         . ' -d decrypt.switch=' . ($enabled ? 'enable' : 'disable')
         . ' -d ' . escapeshellarg('decrypt.project_root=' . $project)
         . ' -d ' . escapeshellarg('decrypt.save_path=' . $output);

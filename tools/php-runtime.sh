@@ -17,3 +17,12 @@ php_decrypt_isolated_args() {
     "$runtime_bin" "${PHP_DECRYPT_ISOLATED_ARGS[@]}" -r \
         'if (!extension_loaded("hash") || !extension_loaded("json")) exit(1);'
 }
+
+# Executing this file launches an isolated PHP process; sourcing it only defines
+# the helper above. Keep CLI tools and their children on the same dependencies.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    set -euo pipefail
+    php_decrypt_runtime_bin=${PHP_BIN:-php}
+    php_decrypt_isolated_args "$php_decrypt_runtime_bin"
+    exec "$php_decrypt_runtime_bin" "${PHP_DECRYPT_ISOLATED_ARGS[@]}" "$@"
+fi
