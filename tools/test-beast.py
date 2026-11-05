@@ -206,6 +206,30 @@ echo json_encode(array('value_b64'=>base64_encode($first), 'again_b64'=>base64_e
                     'Wrong-order capture was not the encrypted entry file')
             require(len(fastcgi.rows(wrong)) == 1, 'Wrong-order capture unexpectedly reached the library')
             result.update(status='PASS', file_records=2, eval_records=0, wrong_order='ciphertext captured; application output incorrect')
+            if args.filters:
+                limited = case / 'limited-captures'
+                limited.mkdir()
+                limit = len(expected['lib/message.php'])
+                require(len(encrypted['lib/message.php']) > limit, 'Fixture must have a larger cipher than plaintext')
+                limited_settings = [*settings, '-d', 'decrypt.save_path=' + str(limited),
+                                    '-d', 'decrypt.max_capture_bytes=' + str(limit)]
+                body = execute([*cli, *extension_args([args.decrypt, args.beast]), *limited_settings, str(project / 'index.php')])
+                limited_rows = fastcgi.rows(limited)
+                require(value_matches(body, value) and len(limited_rows) == 1
+                        and limited_rows[0]['relative_path'] == 'current/lib/message.php'
+                        and (limited / 'current/lib/message.php').read_bytes() == expected['lib/message.php']
+                        and not (limited / 'current/index.php').exists(), 'Limit must use decrypted byte length')
+                fastcgi.validate_store(limited)
+                excluded = case / 'excluded-captures'
+                excluded.mkdir()
+                excluded_settings = [*settings, '-d', 'decrypt.save_path=' + str(excluded),
+                                     '-d', 'decrypt.exclude_paths=\'["lib/"]\'']
+                body = execute([*cli, *extension_args([args.decrypt, args.beast]), *excluded_settings, str(project / 'index.php')])
+                require(value_matches(body, value) and len(fastcgi.rows(excluded)) == 1
+                        and not (excluded / 'current/lib').exists(), 'Excluded beast source must execute without capture')
+                fastcgi.validate_store(excluded)
+                result['filters'] = 'decrypted byte limit and excluded directory passed'
+                print('PASS beast filters ' + algorithm + ' ' + language + ': decrypted length and directory exclusion')
             if args.fpm:
                 result['fpm'] = fpm_check(args, isolated, settings, project, captures, expected, value, case)
             require(all((project / r).read_bytes() == b for r, b in encrypted.items()), 'Encrypted input was modified')
@@ -222,6 +246,7 @@ def main():
     parser.add_argument('--beast', required=True)
     parser.add_argument('--decrypt', required=True)
     parser.add_argument('--fpm', help='Optional matching PHP 7 FPM binary')
+    parser.add_argument('--filters', action='store_true', help='Also verify directory exclusions and plaintext byte limits')
     parser.add_argument('--output', required=True, help='New output directory; fixtures and logs are kept')
     args = parser.parse_args()
     for name in ('php', 'beast', 'decrypt', 'fpm'):

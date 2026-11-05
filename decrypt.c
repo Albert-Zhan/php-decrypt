@@ -42,6 +42,9 @@ PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("decrypt.switch", "disable", PHP_INI_SYSTEM, OnUpdateString, global_switch, zend_decrypt_globals, decrypt_globals)
     STD_PHP_INI_ENTRY("decrypt.save_path", "", PHP_INI_SYSTEM, OnUpdateString, save_path, zend_decrypt_globals, decrypt_globals)
     STD_PHP_INI_ENTRY("decrypt.project_root", "", PHP_INI_SYSTEM, OnUpdateString, project_root, zend_decrypt_globals, decrypt_globals)
+    STD_PHP_INI_ENTRY("decrypt.exclude_paths", "[]", PHP_INI_SYSTEM, OnUpdateString, exclude_paths, zend_decrypt_globals, decrypt_globals)
+    STD_PHP_INI_ENTRY("decrypt.max_capture_bytes", "0", PHP_INI_SYSTEM, OnUpdateString, max_capture_bytes, zend_decrypt_globals, decrypt_globals)
+    STD_PHP_INI_BOOLEAN("decrypt.log_skips", "0", PHP_INI_SYSTEM, OnUpdateBool, log_skips, zend_decrypt_globals, decrypt_globals)
     STD_PHP_INI_BOOLEAN("decrypt.history", "1", PHP_INI_SYSTEM, OnUpdateBool, history, zend_decrypt_globals, decrypt_globals)
     STD_PHP_INI_BOOLEAN("decrypt.index", "1", PHP_INI_SYSTEM, OnUpdateBool, index, zend_decrypt_globals, decrypt_globals)
     STD_PHP_INI_BOOLEAN("decrypt.sync", "0", PHP_INI_SYSTEM, OnUpdateBool, sync, zend_decrypt_globals, decrypt_globals)
@@ -100,6 +103,10 @@ static PHP_GINIT_FUNCTION(decrypt)
     decrypt_globals->global_switch = NULL;
     decrypt_globals->save_path = NULL;
     decrypt_globals->project_root = NULL;
+    decrypt_globals->exclude_paths = decrypt_globals->max_capture_bytes = NULL;
+    ZVAL_UNDEF(&decrypt_globals->excluded_prefixes);
+    ZVAL_UNDEF(&decrypt_globals->logged_skips);
+    decrypt_globals->capture_limit = 0;
     decrypt_globals->input_root = NULL;
     decrypt_globals->output_root = NULL;
     decrypt_globals->busy = decrypt_globals->ready = decrypt_globals->config_failed = 0;

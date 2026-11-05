@@ -94,7 +94,7 @@ def validate_store(output):
 
 
 class Pool:
-    def __init__(self, args, root, project, output, workers):
+    def __init__(self, args, root, project, output, workers, settings=()):
         self.root, self.process, self.log = root, None, None
         root.mkdir()
         with socket.socket() as probe:
@@ -116,7 +116,7 @@ class Pool:
             command.append('-R')
         for setting in ['extension=' + args.extension, 'decrypt.switch=enable',
                         'decrypt.project_root=' + str(project), 'decrypt.save_path=' + str(output),
-                        'display_errors=0', 'log_errors=1', 'error_reporting=32767', 'opcache.enable=0']:
+                        'display_errors=0', 'log_errors=1', 'error_reporting=32767', 'opcache.enable=0', *settings]:
             command.extend(['-d', setting])
         self.log = (root / 'master.log').open('wb')
         self.process = subprocess.Popen(command, stdout=self.log, stderr=subprocess.STDOUT)
@@ -214,6 +214,29 @@ echo json_encode(array('pid' => getmypid(), 'value' => $value, 'decoded' => $dec
         print('PASS concurrent FPM: 24 requests across ' + str(len(pids)) + ' workers, valid JSONL and captures')
     finally:
         parallel.close()
+    # Request-local filter caches and log de-duplication must reset in a reused worker.
+    for mode, extra, skipped, missing in (
+            ('excluded', ["decrypt.exclude_paths='[\"value.php\"]'"], 'excluded', 'value.php'),
+            ('limited', ['decrypt.max_capture_bytes=64'], 'max_capture_bytes', 'index.php')):
+        captures = root / (mode + '-captures')
+        captures.mkdir()
+        skip_log = root / (mode + '-skips.log')
+        filtered = Pool(args, root / (mode + '-pool'), project, captures, 1,
+                        [*extra, 'decrypt.log_skips=1', 'error_log=' + str(skip_log)])
+        try:
+            pids = set()
+            for _ in range(8):
+                body = response_json(request(filtered.address, script))
+                assert body['value'] == 'A' and body['decoded'] == 'decoded', body
+                pids.add(body['pid'])
+            assert len(pids) == 1 and not (captures / 'current' / missing).exists()
+            assert len(rows(captures)) == 2
+            validate_store(captures)
+            entries = [json.loads(line.split('decrypt: ', 1)[1]) for line in skip_log.read_text().splitlines()]
+            assert len(entries) == 8 and all(entry['reason'] == skipped for entry in entries)
+            print('PASS filtered FPM: ' + mode + ', 8 requests on one worker, independent captures and request-local skip logs')
+        finally:
+            filtered.close()
     print('FPM integration verification passed')
 
 

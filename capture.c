@@ -15,6 +15,7 @@
 #include "ext/standard/base64.h"
 #include "Zend/zend_smart_str.h"
 #include <errno.h>
+#include <ctype.h>
 #include <fcntl.h>
 #include <time.h>
 #ifdef PHP_WIN32
@@ -58,6 +59,143 @@ static int within(const char *path, const char *root)
     int match = strncmp(path, root, n) == 0;
 #endif
     return match && (root[n - 1] == '/' || path[n] == '/' || path[n] == '\0');
+}
+
+/* Parse independently of PHP-version-specific INI quantity helpers. Never
+ * accept negatives, partial numbers, or values that overflow zend_long. */
+static int parse_capture_limit(const char *raw, size_t *limit)
+{
+    const unsigned char *p = (const unsigned char *) raw;
+    size_t value = 0, multiplier = 1, maximum = (size_t) ZEND_LONG_MAX;
+    if (!p) return FAILURE;
+    while (isspace(*p)) ++p;
+    if (*p < '0' || *p > '9') return FAILURE;
+    while (*p >= '0' && *p <= '9') {
+        size_t digit = *p++ - '0';
+        if (value > (maximum - digit) / 10) return FAILURE;
+        value = value * 10 + digit;
+    }
+    if (*p && !isspace(*p)) {
+        switch (toupper(*p++)) {
+            case 'K': multiplier = (size_t) 1024; break;
+            case 'M': multiplier = (size_t) 1024 * 1024; break;
+            case 'G': multiplier = (size_t) 1024 * 1024 * 1024; break;
+            default: return FAILURE;
+        }
+    }
+    while (isspace(*p)) ++p;
+    if (*p || value > maximum / multiplier) return FAILURE;
+    *limit = value * multiplier;
+    return SUCCESS;
+}
+
+static int valid_excluded_prefix(const char *path)
+{
+    const char *start = path, *p;
+    if (!*path || IS_ABSOLUTE_PATH(path, strlen(path))) return 0;
+    for (p = path; ; ++p) {
+        size_t length;
+        if (*p != '/' && *p) continue;
+        length = (size_t) (p - start);
+        if (!length || (length == 1 && start[0] == '.')
+            || (length == 2 && start[0] == '.' && start[1] == '.')) return 0;
+        if (!*p) return 1;
+        start = p + 1;
+    }
+}
+
+static const char *capture_filters_init(void)
+{
+    zval decoded, prefixes, *entry;
+    php_json_error_code saved_json_error;
+    int decoded_ok;
+    const char *error = "decrypt.exclude_paths must be a JSON array of non-empty project-relative paths without . or .. components";
+    if (parse_capture_limit(DCG(max_capture_bytes), &DCG(capture_limit)) != SUCCESS) {
+        return "decrypt.max_capture_bytes must be a non-negative integer with an optional K, M or G suffix, without overflow";
+    }
+    ZVAL_UNDEF(&decoded);
+    saved_json_error = JSON_G(error_code);
+    decoded_ok = php_json_decode_ex(&decoded, DCG(exclude_paths) ? DCG(exclude_paths) : "",
+        DCG(exclude_paths) ? strlen(DCG(exclude_paths)) : 0, 0, 64);
+    JSON_G(error_code) = saved_json_error;
+    array_init(&prefixes);
+    if (decoded_ok != SUCCESS || Z_TYPE(decoded) != IS_ARRAY) goto invalid;
+    ZEND_HASH_FOREACH_VAL(Z_ARRVAL(decoded), entry) {
+        char *prefix;
+        size_t length;
+        if (Z_TYPE_P(entry) != IS_STRING || !Z_STRLEN_P(entry)
+            || memchr(Z_STRVAL_P(entry), '\0', Z_STRLEN_P(entry))) goto invalid;
+        prefix = estrndup(Z_STRVAL_P(entry), Z_STRLEN_P(entry));
+        normalize_path(prefix);
+        length = strlen(prefix);
+        while (length && prefix[length - 1] == '/') prefix[--length] = '\0';
+        if (!valid_excluded_prefix(prefix)) {
+            efree(prefix);
+            goto invalid;
+        }
+        add_next_index_stringl(&prefixes, prefix, length);
+        efree(prefix);
+    } ZEND_HASH_FOREACH_END();
+    zval_ptr_dtor(&decoded);
+    ZVAL_COPY_VALUE(&DCG(excluded_prefixes), &prefixes);
+    return NULL;
+invalid:
+    if (!Z_ISUNDEF(decoded)) zval_ptr_dtor(&decoded);
+    zval_ptr_dtor(&prefixes);
+    return error;
+}
+
+static int capture_is_excluded(const char *relative)
+{
+    zval *prefix;
+    ZEND_HASH_FOREACH_VAL(Z_ARRVAL(DCG(excluded_prefixes)), prefix) {
+        if (within(relative, Z_STRVAL_P(prefix))) return 1;
+    } ZEND_HASH_FOREACH_END();
+    return 0;
+}
+
+/* Expected skips bypass PHP user error handlers. Encode paths to prevent
+ * newlines in filenames from forging log records, preserving JSON state. */
+static void log_capture_skip(const char *reason, const char *filename, size_t length, int is_eval)
+{
+    char *key, *message;
+    int key_length;
+    zval seen, record;
+    smart_str json = {0};
+    php_json_error_code saved_json_error;
+    if (!DCG(log_skips)) return;
+    if (Z_ISUNDEF(DCG(logged_skips))) array_init(&DCG(logged_skips));
+    key_length = spprintf(&key, 0, "%s:%d:%s", reason, is_eval, filename);
+    if (zend_hash_str_exists(Z_ARRVAL(DCG(logged_skips)), key, (size_t) key_length)) {
+        efree(key);
+        return;
+    }
+    ZVAL_TRUE(&seen);
+    zend_hash_str_add_new(Z_ARRVAL(DCG(logged_skips)), key, (size_t) key_length, &seen);
+    efree(key);
+    array_init(&record);
+    add_assoc_string(&record, "event", "capture_skipped");
+    add_assoc_string(&record, "reason", (char *) reason);
+    add_assoc_string(&record, "kind", is_eval ? "eval" : "file");
+    add_assoc_string(&record, "source_path", (char *) filename);
+    add_assoc_str(&record, "source_path_b64", php_base64_encode((const unsigned char *) filename, strlen(filename)));
+    add_assoc_long(&record, "bytes", (zend_long) length);
+    add_assoc_long(&record, "max_capture_bytes", (zend_long) DCG(capture_limit));
+    saved_json_error = JSON_G(error_code);
+#if PHP_VERSION_ID >= 70200
+    php_json_encode(&json, &record, PHP_JSON_INVALID_UTF8_SUBSTITUTE);
+#else
+    php_json_encode(&json, &record, PHP_JSON_PARTIAL_OUTPUT_ON_ERROR);
+#endif
+    JSON_G(error_code) = saved_json_error;
+    zval_ptr_dtor(&record);
+    smart_str_0(&json);
+    if (json.s) {
+        spprintf(&message, 0, "decrypt: %s", ZSTR_VAL(json.s));
+        php_log_err(message);
+        efree(message);
+    }
+    smart_str_free(&json);
 }
 
 static char *join_path(const char *left, const char *right)
@@ -329,9 +467,15 @@ int decrypt_capture_init(void)
     char project[MAXPATHLEN], output[MAXPATHLEN];
     zend_stat_t sb;
     size_t n;
+    const char *filter_error;
     if (DCG(ready)) return SUCCESS;
     if (DCG(config_failed)) return FAILURE;
     DCG(config_failed) = 1;
+    filter_error = capture_filters_init();
+    if (filter_error) {
+        php_error_docref(NULL, E_WARNING, "decrypt: %s", filter_error);
+        return FAILURE;
+    }
     if (!DCG(project_root) || !IS_ABSOLUTE_PATH(DCG(project_root), strlen(DCG(project_root)))
         || !VCWD_REALPATH(DCG(project_root), project)) goto invalid;
     if (!DCG(save_path) || !IS_ABSOLUTE_PATH(DCG(save_path), strlen(DCG(save_path)))
@@ -373,6 +517,11 @@ invalid:
 
 void decrypt_capture_shutdown(void)
 {
+    if (!Z_ISUNDEF(DCG(excluded_prefixes))) zval_ptr_dtor(&DCG(excluded_prefixes));
+    if (!Z_ISUNDEF(DCG(logged_skips))) zval_ptr_dtor(&DCG(logged_skips));
+    ZVAL_UNDEF(&DCG(excluded_prefixes));
+    ZVAL_UNDEF(&DCG(logged_skips));
+    DCG(capture_limit) = 0;
     if (DCG(input_root)) efree(DCG(input_root));
     if (DCG(output_root)) efree(DCG(output_root));
     DCG(input_root) = DCG(output_root) = NULL;
@@ -405,13 +554,21 @@ static void capture_source_impl(const char *filename, const char *bytes, size_t 
     } else if (!VCWD_REALPATH(filename, absolute)) return;
     normalize_path(absolute);
     if (!within(absolute, DCG(input_root)) || within(absolute, DCG(output_root))) return;
+    root_length = strlen(DCG(input_root));
+    while (absolute[root_length] == '/') ++root_length;
+    if (capture_is_excluded(absolute + root_length)) {
+        log_capture_skip("excluded", filename, length, is_eval);
+        return;
+    }
+    if (DCG(capture_limit) && length > DCG(capture_limit)) {
+        log_capture_skip("max_capture_bytes", filename, length, is_eval);
+        return;
+    }
     digest_hex(bytes, length, hash);
     if (is_eval) {
         digest_hex(filename, strlen(filename), key);
         spprintf(&relative, 0, "eval/%s/%s.code", key, hash);
     } else {
-        root_length = strlen(DCG(input_root));
-        while (absolute[root_length] == '/') ++root_length;
         spprintf(&relative, 0, "current/%s", absolute + root_length);
     }
     digest_hex(relative, strlen(relative), key);

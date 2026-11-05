@@ -48,6 +48,25 @@ jobs:
           python3 tools/test-fpm.py --fpm "$fpm" --extension "$TMPDIR/decrypt-build/modules/decrypt.so"
           PHP_BIN="$(command -v php)" DECRYPT_EXTENSION="$TMPDIR/decrypt-build/modules/decrypt.so" \
             examples/run-demo.sh "$TMPDIR/decrypt-demo"
+      - name: Verify filters against pinned php-beast
+        if: matrix.php == '7.4'
+        run: |
+          export TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
+          git init "$TMPDIR/php-beast"
+          git -C "$TMPDIR/php-beast" fetch --depth=1 https://github.com/liexusong/php-beast.git 4549b2a642a9b04408b4bfbb3af64131c7f1f2dd
+          git -C "$TMPDIR/php-beast" checkout --detach FETCH_HEAD
+          (
+            cd "$TMPDIR/php-beast"
+            phpize
+            ./configure --enable-beast --with-php-config="$(command -v php-config)"
+            make -j2
+          )
+          version="$(php -r 'echo PHP_MAJOR_VERSION,".",PHP_MINOR_VERSION;')"
+          fpm="$(php-config --prefix)/sbin/php-fpm"
+          if [ ! -x "$fpm" ]; then fpm="$(command -v "php-fpm$version")"; fi
+          python3 -B tools/test-beast.py --php "$(command -v php)" \
+            --beast "$TMPDIR/php-beast/modules/beast.so" --decrypt "$TMPDIR/decrypt-build/modules/decrypt.so" \
+            --fpm "$fpm" --filters --output "$TMPDIR/beast-filters"
       - name: Failing PHPT differences
         if: failure()
         run: find "$RUNNER_TEMP/decrypt-build/tests" -name '*.diff' -exec cat {} \;
@@ -159,7 +178,8 @@ jobs:
           php -d "extension=$TMPDIR/decrypt-build/modules/decrypt.so" -d decrypt.switch=enable \
             -d "decrypt.project_root=$TMPDIR/decrypt-threads/project" \
             -d "decrypt.save_path=$TMPDIR/decrypt-threads/captures" -d opcache.enable_cli=0 \
-            tools/test-zts.php "$TMPDIR/decrypt-threads"
+            -d "decrypt.exclude_paths='[\"excluded.php\"]'" -d decrypt.max_capture_bytes=1K \
+            tools/test-zts.php "$TMPDIR/decrypt-threads" --filters
       - name: Failing PHPT differences
         if: failure()
         run: find "$RUNNER_TEMP/decrypt-build/tests" -name '*.diff' -exec cat {} \;

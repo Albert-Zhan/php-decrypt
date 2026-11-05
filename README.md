@@ -102,6 +102,9 @@ decrypt.save_path=/data/php-captures/shop
 | `decrypt.history` | `1` | 保存按内容去重的历史对象 |
 | `decrypt.index` | `1` | 追加 JSONL 版本记录，供检查和恢复工具使用 |
 | `decrypt.capture_eval` | `1` | 捕获来源位于项目内的字符串编译内容，包括 `eval()` |
+| `decrypt.exclude_paths` | `[]` | JSON 数组，排除项目相对路径及其子树 |
+| `decrypt.max_capture_bytes` | `0` | 单份文件或 eval 体的字节上限，`0` 不限，支持 `K` / `M` / `G` |
+| `decrypt.log_skips` | `0` | 将排除、超限原因写入 PHP 错误日志，每个请求对同一来源、类型和原因仅记一次 |
 | `decrypt.sync` | `0` | 同步文件和目录更新，提高持久性并增加写入延迟 |
 
 所有配置均为 `PHP_INI_SYSTEM`，不能用 `ini_set()` 修改。CLI 可使用 `-d`；修改 FPM 配置后需重启或重新加载 FPM。CLI 与 FPM 可能使用不同配置文件，`php --ini` 和 `php --ri decrypt` 仅检查当前 CLI。
@@ -109,6 +112,31 @@ decrypt.save_path=/data/php-captures/shop
 输出路径受 `open_basedir` 限制，拒绝已有符号链接。输出目录不能等于项目根目录，也不能是项目根目录的上级目录；若置于项目内部，该输出子树会被排除。输出目录及其父目录应由可信用户控制。
 
 从旧版本升级时，需新增 `decrypt.project_root`。0.2 起不再写入 `decrypt.code`，旧文件不会自动转换或删除。
+
+### 捕获过滤与大小限制
+
+默认捕获范围和大小不受新配置限制。需要排除依赖、缓存目录或限制单份内容大小时，可增加：
+
+```ini
+decrypt.exclude_paths='["vendor/","storage/cache/","bootstrap/cache/"]'
+decrypt.max_capture_bytes=2M
+decrypt.log_skips=1
+```
+
+路径相对于 `decrypt.project_root`，按完整路径段匹配；`vendor` 与 `vendor/` 等价，不匹配 `vendor-old/`。单文件条目也可使用，例如 `config/private.php`。排除规则同时作用于来源文件及其产生的 eval；只支持字面路径，不支持通配符或正则。空条目、绝对路径、NUL、空路径段和 `.` / `..` 路径段均为非法配置。带单引号的名称可在 JSON 中写为 `\u0027`；POSIX 文件名中的反斜杠按 JSON 转义为 `\\`，不会当成目录分隔符。
+
+上限按实际送入捕获入口的字节数计算，`2M` 为 2,097,152 字节，等于上限允许、超过则整份跳过。普通文件和 eval 体分别检查，beast 场景使用解密后的明文长度；超限的包装文件仍可产生符合大小要求的 eval 捕获。负数、非整数、不完整单位及溢出值会报配置错误，本请求不捕获，原有编译流程继续执行；配置错误仍沿用 PHP Warning 处理方式。
+
+过滤发生在 SHA-256、路径锁和源码写入之前，不为被跳过的内容创建历史对象或版本记录，也不更新其锁状态。已有捕获和历史会保留。代码通常已由上游读取，因此此选项限制捕获开销，不限制 PHP 编译或上游解密的内存。
+
+启用 `decrypt.log_skips` 后，`error_log` 中会出现以 `decrypt: ` 开头的 JSON 诊断，原因是 `excluded` 或 `max_capture_bytes`，附带类型、来源、字节数和上限。预期跳过不触发业务错误处理器，不写入 `index.jsonl`。来源名中的换行会被转义，`source_path_b64` 保留原始路径字节。规则和日志去重状态按请求隔离，在 FPM worker 复用时会重置。
+
+CLI 建议将 JSON 数组写入配置文件，并用 `php -c /path/to/php.ini` 加载；配置好扩展后也可用 `-d decrypt.max_capture_bytes=4M` 临时覆盖上限。若直接传 JSON，需同时保留 INI 的引号，例如：
+
+```bash
+php -d "decrypt.exclude_paths='[\"vendor/\",\"storage/cache/\"]'" \
+    -d decrypt.max_capture_bytes=2M /www/shop/index.php
+```
 
 ## 捕获结果
 

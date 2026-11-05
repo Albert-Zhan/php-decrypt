@@ -68,6 +68,10 @@ mkdir -p /absolute/new-test-root/project /absolute/new-test-root/captures
 
 本轮没有改动扩展 C 核心、INI 默认值、编译钩子、捕获格式或存储算法。
 
+## 捕获过滤回归（主分支新增）
+
+当前主分支另增加了捕获过滤回归：FPM 在原 53 次请求后，分别以路径排除和大小限制配置复用同一 worker 各执行 8 次请求，检查规则、捕获内容和逐请求日志去重状态。PHP 8.3 ZTS CI 以 `tools/test-zts.php ... --filters` 检查四个线程中的排除文件、其 eval 来源及超限文件，原 160 次循环 include 和对应 eval 检查继续执行。上表为原始验证记录，新增用例的实际结果以当前 CI 为准。
+
 ## 范围限制
 
 这些结果覆盖指定 PHP 补丁版本、macOS 15.7.9 与本地文件系统。尚未验证 macOS Intel ZTS、PHP 7.4 的真实线程、其他 macOS/PHP 版本、OPcache/Xdebug/商业加密扩展组合、网络文件系统、强杀或超时中断、断电恢复及长时间生产负载。FPM 测试直接使用 FastCGI，未验证具体 Web 服务器的配置。

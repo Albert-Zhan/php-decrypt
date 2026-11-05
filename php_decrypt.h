@@ -34,12 +34,18 @@ ZEND_BEGIN_MODULE_GLOBALS(decrypt)
     char *global_switch;
     char *save_path;
     char *project_root;
+    char *exclude_paths;
+    char *max_capture_bytes;
+    zend_bool log_skips;
     zend_bool history;
     zend_bool index;
     zend_bool sync;
     zend_bool capture_eval;
     char *input_root;
     char *output_root;
+    zval excluded_prefixes;
+    zval logged_skips;
+    size_t capture_limit;
     zend_bool busy;
     zend_bool ready;
     zend_bool config_failed;

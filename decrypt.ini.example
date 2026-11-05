@@ -15,5 +15,12 @@ decrypt.history=1
 decrypt.index=1
 ; Capture eval/string-compiler bodies independently of the original loader.
 decrypt.capture_eval=1
+; JSON array of literal project-relative paths and their subtrees. No globs.
+decrypt.exclude_paths='[]'
+; Example: decrypt.exclude_paths='["vendor/","storage/cache/","bootstrap/cache/"]'
+; Maximum bytes per file or eval body: 0 is unlimited; K/M/G use powers of 1024.
+decrypt.max_capture_bytes=0
+; Log expected skips to PHP error_log, once per source/kind/reason per request.
+decrypt.log_skips=0
 ; Linux: fsync file data and directory updates. Higher latency; default off.
 decrypt.sync=0

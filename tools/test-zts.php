@@ -1,6 +1,7 @@
 <?php
 /* Run with ZTS PHP, parallel and decrypt loaded, and project/captures pre-created. */
-if (!PHP_ZTS || !extension_loaded('parallel') || !extension_loaded('decrypt') || $argc !== 2) {
+if (!PHP_ZTS || !extension_loaded('parallel') || !extension_loaded('decrypt')
+    || ($argc !== 2 && !($argc === 3 && $argv[2] === '--filters'))) {
     fwrite(STDERR, "Requires ZTS PHP, parallel, decrypt, and an existing test root\n"); exit(2);
 }
 $root = realpath($argv[1]);
@@ -8,12 +9,22 @@ if ($root === false || !is_dir($root . '/project') || !is_dir($root . '/captures
 $source = '<?php return eval(\'return 42;\');';
 $shared = $root . '/project/common.php';
 file_put_contents($shared, $source);
+$filters = $argc === 3;
+if ($filters) {
+    file_put_contents($root . '/project/excluded.php', $source);
+    file_put_contents($root . '/project/too-large.php', '<?php return 42; /*' . str_repeat('x', 2048) . '*/');
+}
 $runtimes = array(); $futures = array();
 for ($i = 0; $i < 4; ++$i) {
     $own = $root . '/project/thread' . $i . '.php';
     file_put_contents($own, $source);
     $runtime = new parallel\Runtime();
-    $futures[] = $runtime->run(function ($common, $own) {
+    $futures[] = $runtime->run(function ($common, $own, $filters) {
+        if ($filters) {
+            if ((require dirname($common) . '/excluded.php') !== 42 || (require dirname($common) . '/too-large.php') !== 42) {
+                throw new RuntimeException('Filtered source did not execute');
+            }
+        }
         $sum = 0;
         for ($j = 0; $j < 20; ++$j) {
             $sum += require $common;
@@ -21,7 +32,7 @@ for ($i = 0; $i < 4; ++$i) {
             usleep(1000);
         }
         return array('pid' => getmypid(), 'sum' => $sum);
-    }, array($shared, $own));
+    }, array($shared, $own, $filters));
     $runtimes[] = $runtime;
 }
 foreach ($futures as $future) {
@@ -44,3 +55,4 @@ foreach ($rows as $line) {
 $objects = glob($root . '/captures/objects/*/*.code');
 if (count($objects) !== 2) throw new RuntimeException('Thread content deduplication failed');
 echo "PASS ZTS: 4 native threads, 160 file includes plus evals, valid deduplicated captures\n";
+if ($filters) echo "PASS ZTS filters: excluded files and eval origins plus oversized sources remain uncaptured in all threads\n";
