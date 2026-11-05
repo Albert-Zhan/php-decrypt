@@ -1,0 +1,105 @@
+name: Source release
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+    paths:
+      - .github/workflows/release.yml
+      - .github/workflows/runtime-verification.yml
+      - tools/release.py
+      - tests/test_release.py
+      - docs/releasing.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      sha: ${{ steps.plan.outputs.sha }}
+      prerelease: ${{ steps.plan.outputs.prerelease }}
+      notes: ${{ steps.plan.outputs.notes }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Release guard regression checks
+        run: python3 -B tests/test_release.py
+      - name: Validate version and source commit
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            python3 -B tools/release.py --tag "${GITHUB_REF#refs/tags/}" --output "$GITHUB_OUTPUT"
+          else
+            python3 -B tools/release.py --output "$GITHUB_OUTPUT"
+            echo 'Dry run only: no tag or release will be created.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  verify:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: prepare
+    uses: ./.github/workflows/runtime-verification.yml
+    with:
+      source_ref: ${{ needs.prepare.outputs.sha }}
+
+  publish:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [prepare, verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+      NOTES: ${{ needs.prepare.outputs.notes }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Recheck tag before publication
+        run: python3 -B tools/release.py --tag "$TAG"
+      - name: Create source release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GH_REPO" --json isDraft,url > "$RUNNER_TEMP/existing-release.json"; then
+            python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          release = json.loads(Path(os.environ['RUNNER_TEMP'], 'existing-release.json').read_text())
+          if release['isDraft']:
+              raise SystemExit('An existing draft requires manual review; it will not be overwritten.')
+          print('Release already published; leaving it unchanged: ' + release['url'])
+          PY
+            exit 0
+          fi
+          arguments=(--repo "$GH_REPO" --verify-tag --target "$SOURCE_SHA" --title "PHP Decrypt $TAG")
+          if [[ -n "$NOTES" ]]; then
+            arguments+=(--notes-file "$NOTES")
+          else
+            arguments+=(--generate-notes)
+          fi
+          if [[ "$PRERELEASE" == true ]]; then
+            arguments+=(--prerelease --latest=false)
+          else
+            arguments+=(--latest)
+          fi
+          gh release create "$TAG" "${arguments[@]}"

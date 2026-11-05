@@ -165,6 +165,7 @@ tools/test-linux.sh /tmp/php-decrypt-build
 | [基础测试与性能记录](docs/testing.md) | PHPT 场景、示例结果及本地微基准 |
 | [运行环境验证](docs/runtime-testing.md) | Linux/macOS、Intel、FPM 和 ZTS 的验证矩阵及复现方法 |
 | [php-beast 集成验证](docs/beast-testing.md) | PHP 7 的真实扩展加密、加载顺序、明文校验和 FPM 检查 |
+| [版本发布](docs/releasing.md) | 通过版本标签自动验证并发布 GitHub 源码 Release |
 | [tools/test-fpm.py](tools/test-fpm.py) | 真实 FPM 连续请求、异常恢复和多 worker 并发检查 |
 | [tools/test-zts.php](tools/test-zts.php) | 配合 `parallel` 进行原生线程捕获检查 |
 | [tools/verify-captures.php](tools/verify-captures.php) | 校验索引引用的对象与文件，按索引恢复镜像 |
