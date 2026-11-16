@@ -32,7 +32,14 @@ try {
     capture_check(base64_decode($last['relative_path_b64'], true) === 'current/app/raw-' . chr(255) . '.php'
         && is_file($output . '/' . base64_decode($last['relative_path_b64'], true)),
         'non-UTF8 filename bytes remain recoverable through Base64 metadata');
+    $tool = dirname(__DIR__) . '/tools/capture-history.php';
+    $args = array($tool, $output, 'list', 'app/raw-' . chr(255) . '.php');
+    $result = capture_run(array(), '$argv=' . var_export($args, true) . ';$argc=count($argv);require '
+        . var_export($tool, true) . ';');
+    capture_check($result[0] === 0 && strpos($result[1], $last['sha256']) !== false && $result[2] === '',
+        'history query matches original non-UTF8 path bytes');
 } finally { capture_remove($root); }
 ?>
 --EXPECT--
 non-UTF8 filename bytes remain recoverable through Base64 metadata
+history query matches original non-UTF8 path bytes

@@ -197,6 +197,7 @@ tools/test-linux.sh /tmp/php-decrypt-build
 | [tools/test-fpm.py](tools/test-fpm.py) | 真实 FPM 连续请求、异常恢复和多 worker 并发检查 |
 | [tools/test-zts.php](tools/test-zts.php) | 配合 `parallel` 进行原生线程捕获检查 |
 | [tools/verify-captures.php](tools/verify-captures.php) | 校验索引引用的对象与文件，按索引恢复镜像 |
+| [历史查询与导出](docs/storage.md#查询和导出历史) | 查询文件历史，按记录号或 SHA-256 导出原始内容 |
 
 `parallel` 仅用于线程测试，不是本扩展的运行依赖。性能数据为本地微基准，不代表业务请求、网络文件系统或长期生产负载。
 

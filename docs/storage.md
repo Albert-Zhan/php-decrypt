@@ -41,6 +41,22 @@
 
 索引记录的是已发布的版本变化，而非每一次执行。索引中的相对路径可用于定位镜像或片段，`object` 用于定位对应历史内容。
 
+## 查询和导出历史
+
+从仓库根目录运行 `tools/capture-history.php`。第一个参数为 `decrypt.save_path`，查询路径相对于项目根目录。
+
+```bash
+php tools/capture-history.php /data/php-captures/shop list app/Service.php
+php tools/capture-history.php /data/php-captures/shop export --record 42 --output /tmp/Service-old.php
+php tools/capture-history.php /data/php-captures/shop export --sha256 "$HASH" --output /tmp/Service-by-hash.php
+```
+
+`list` 按索引顺序输出记录号、UTC 捕获时间、字节数和完整 SHA-256。记录号从 1 开始，对应 `index.jsonl` 的行号。文件经历 A → B → A 时会列出三条记录，其中两条 A 的哈希相同。替换或重建索引后，请重新查询记录号。
+
+`--record` 可导出普通源码或 eval 记录。工具优先读取该记录关联的历史对象，并检查长度和 SHA-256。如果记录的 `object` 为 `null`，仅当该记录对应的镜像或 eval 片段仍与记录完全一致时才可导出。通过 `--sha256` 可凭完整的 64 位小写十六进制哈希直接导出历史对象，无需索引。
+
+导出提供原始字节，包括二进制内容和 eval 代码体。请指定一个已存在的输出目录和一个新文件名。工具在校验通过后才创建目标文件，已有文件或符号链接会保留。目标目录所在的文件系统需要支持硬链接。
+
 ## 写入与故障恢复
 
 源码先写入目标所在目录的唯一临时文件，完整写入并关闭后再重命名发布。并发更新按路径加锁，索引另行加锁追加；普通捕获不会扫描整个索引。检测到中断的最后一条 JSONL 记录时，会在下次追加前截掉不完整尾行。
