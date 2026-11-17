@@ -201,6 +201,10 @@ tools/test-linux.sh /tmp/php-decrypt-build
 
 `parallel` 仅用于线程测试，不是本扩展的运行依赖。性能数据为本地微基准，不代表业务请求、网络文件系统或长期生产负载。
 
+## 致谢
+
+感谢 [JetBrains](https://www.jetbrains.com/opensource/) 通过开源项目计划提供免费的 IDE 许可证，支持 PHP Decrypt 的开发与维护。
+
 ## 许可证
 
 Apache License 2.0，详见 [LICENSE](LICENSE)。
